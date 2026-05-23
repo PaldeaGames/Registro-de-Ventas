@@ -434,7 +434,13 @@ function renderAll(){renderDash();renderVentas();renderStock();renderPendientes(
 function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]');}
 function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
-function getCfg(){return JSON.parse(localStorage.getItem('pdg_cfg')||'{"url":"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec","tab":"Registro de Ventas"}');}
+function getCfg(){
+  const saved=JSON.parse(localStorage.getItem('pdg_cfg')||'{}');
+  return {
+    url: saved.url || "https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec",
+    tab: saved.tab || "Registro de Ventas"
+  };
+}
 function setVentas(v){localStorage.setItem('pdg_ventas',JSON.stringify(v));}
 function setStock(s){localStorage.setItem('pdg_stock',JSON.stringify(s));}
 
@@ -663,8 +669,8 @@ function actCostoEnvio(id){
 async function actualizarSheets(id, costoEnvio, total){
   const cfg=getCfg();if(!cfg.url)return;
   try{
-    await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado:'enviado',tab:cfg.tab||'Registro de Ventas'})});
+    await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado,tab:cfg.tab||'Registro de Ventas'})});
   }catch(e){console.error(e);}
 }
 
@@ -810,7 +816,7 @@ function renderResumen(){
 async function enviarSheets(v){
   const cfg=getCfg();if(!cfg.url)return;
   const rows=(v.items||[{nombre:v.tipo,qty:1,precio:v.monto}]).map((item,idx)=>({codigo:v.id,fecha:v.fecha,cliente:v.cliente,canal:v.canal,link:v.link,tipo:item.nombre,cantidad:item.qty,descripcion:idx===0?v.desc:'',monto:item.precio*(item.qty||1),total:idx===0?v.total:'',envio:v.envio==='si'?'Sí':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',costoEnvio:idx===0?v.costoEnvio:'',estado:v.estado}));
-  try{await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
+  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
 }
 
 
@@ -821,37 +827,63 @@ function programarRec(v){
 
 async function exportarHistorialSheets(){
   const cfg=getCfg();
-  if(!cfg.url){toast('Sin URL de Sheets configurada');return;}
   const ventas=getVentas();
   if(!ventas.length){toast('Sin ventas para exportar');return;}
   const btn=event.target;
-  btn.innerHTML='<span class="spinner"></span>Exportando...';btn.disabled=true;
-  // Send in batches of 10
-  let ok=0;
-  for(let b=0;b<ventas.length;b+=10){
-    const batch=ventas.slice(b,b+10);
-    const rows=[];
-    batch.forEach(v=>{
-      const items=v.items||[{nombre:v.tipo,qty:v.qty||1,precio:v.monto}];
-      items.forEach((item,idx)=>{
-        rows.push({
-          codigo:v.id,fecha:v.fecha,cliente:v.cliente,canal:v.canal,link:v.link,
-          tipo:item.nombre,cantidad:item.qty||1,descripcion:idx===0?v.desc||'':'',
-          monto:item.precio*(item.qty||1),total:idx===0?v.total:'',
-          envio:v.envio==='si'?'Si':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',
-          costoEnvio:idx===0?v.costoEnvio||0:'',estado:v.estado||'pendiente'
-        });
+  btn.innerHTML='<span class="spinner"></span>Exportando '+ventas.length+' ventas...';
+  btn.disabled=true;
+
+  const rows=[];
+  ventas.forEach(v=>{
+    const items=v.items||[{nombre:v.tipo,qty:v.qty||1,precio:v.monto}];
+    items.forEach((item,idx)=>{
+      rows.push({
+        codigo:v.id,
+        fecha:v.fecha,
+        cliente:v.cliente,
+        canal:v.canal||'',
+        link:v.link||'',
+        tipo:item.nombre||v.tipo||'',
+        cantidad:item.qty||1,
+        descripcion:idx===0?(v.desc||''):'',
+        monto:item.precio*(item.qty||1),
+        total:idx===0?v.total:'',
+        envio:v.envio==='si'?'Si':'No',
+        empresa:v.empresa||'',
+        ciudad:v.ciudad||'',
+        costoEnvio:idx===0?(v.costoEnvio||0):'',
+        estado:v.estado||'pendiente'
       });
     });
+  });
+
+  // Split into batches of 20 with delay between each
+  const batchSize=20;
+  let enviados=0;
+  for(let b=0;b<rows.length;b+=batchSize){
+    const batch=rows.slice(b,b+batchSize);
     try{
-      await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});
-      ok+=batch.length;
-    }catch(e){console.error(e);}
+      const resp=await fetch(cfg.url,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({tab:cfg.tab,rows:batch})
+      });
+      const txt=await resp.text();
+      console.log('Batch '+(b/batchSize+1)+' response:',txt);
+      enviados+=batch.length;
+      btn.innerHTML='<span class="spinner"></span>Exportando... '+enviados+'/'+rows.length;
+    }catch(e){
+      console.error('Batch error:',e);
+    }
+    // Small delay between batches
+    if(b+batchSize<rows.length) await new Promise(r=>setTimeout(r,500));
   }
-  btn.innerHTML='&#128228; Exportar historial a Sheets';btn.disabled=false;
-  toast('✓ '+ok+' ventas exportadas a Google Sheets');
+
+  btn.innerHTML='&#128228; Exportar historial a Sheets';
+  btn.disabled=false;
+  toast('✓ '+enviados+' filas enviadas a Google Sheets — revisá la planilla');
 }
+
 
 function limpiarVentasHistoricas(){
   const ventas=getVentas();
