@@ -27,6 +27,8 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px 80px;}
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
 @media(max-width:540px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
 .stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.stat-clickable{cursor:pointer;transition:border-color .2s,transform .15s;}
+.stat-clickable:hover{border-color:var(--accent);transform:translateY(-2px);}
 .stat-label{font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
 .stat-value{font-family:var(--font-display);font-size:26px;letter-spacing:1px;color:var(--accent);}
 .stat-sub{font-size:11px;color:var(--muted);margin-top:3px;}
@@ -137,18 +139,17 @@ textarea{resize:vertical;min-height:60px;}
   <button class="tab" onclick="showTab('pendientes',this)" id="tab-btn-pendientes">Pendientes</button>
   <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
   <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
-  <button class="tab" onclick="showTab('config',this)">Config</button>
 </nav>
 <main>
 
 <div class="section active" id="tab-dashboard">
   <div class="section-title">DASHBOARD</div>
   <div class="stats-grid">
-    <div class="stat-box"><div class="stat-label">Hoy</div><div class="stat-value" id="sHoy">$0</div><div class="stat-sub" id="sHoySub">0 ventas</div></div>
-    <div class="stat-box"><div class="stat-label">Esta semana</div><div class="stat-value" id="sSem">$0</div><div class="stat-sub" id="sSemSub">0 ventas</div></div>
-    <div class="stat-box"><div class="stat-label">Este mes</div><div class="stat-value" id="sMes">$0</div><div class="stat-sub" id="sMesSub">0 ventas</div></div>
-    <div class="stat-box"><div class="stat-label">Total histórico</div><div class="stat-value" id="sTotal">$0</div><div class="stat-sub" id="sTotalSub">0 ventas</div></div>
-    <div class="stat-box"><div class="stat-label">Envíos pendientes</div><div class="stat-value" id="sEnvPend" style="color:var(--accent2)">0</div><div class="stat-sub">por despachar</div></div>
+    <div class="stat-box stat-clickable" onclick="irAVentas('hoy')" title="Ver ventas de hoy"><div class="stat-label">Hoy ↗</div><div class="stat-value" id="sHoy">$0</div><div class="stat-sub" id="sHoySub">0 ventas</div></div>
+    <div class="stat-box stat-clickable" onclick="irAVentas('semana')" title="Ver ventas de esta semana"><div class="stat-label">Esta semana ↗</div><div class="stat-value" id="sSem">$0</div><div class="stat-sub" id="sSemSub">0 ventas</div></div>
+    <div class="stat-box stat-clickable" onclick="irAVentas('mes')" title="Ver ventas de este mes"><div class="stat-label">Este mes ↗</div><div class="stat-value" id="sMes">$0</div><div class="stat-sub" id="sMesSub">0 ventas</div></div>
+    <div class="stat-box stat-clickable" onclick="irAVentas('todas')" title="Ver todas las ventas"><div class="stat-label">Total histórico ↗</div><div class="stat-value" id="sTotal">$0</div><div class="stat-sub" id="sTotalSub">0 ventas</div></div>
+    <div class="stat-box stat-clickable" onclick="irAPendientes()" title="Ver envíos pendientes" style="border-color:rgba(241,192,53,.3);"><div class="stat-label">Envíos pendientes ↗</div><div class="stat-value" id="sEnvPend" style="color:var(--accent2)">0</div><div class="stat-sub">por despachar</div></div>
     <div class="stat-box"><div class="stat-label">Ticket promedio</div><div class="stat-value" id="sTicket">$0</div><div class="stat-sub">mes actual</div></div>
   </div>
   <div class="card"><div class="card-title">Ingresos — Últimos 7 días</div><div class="chart-wrap"><div class="chart-bars" id="chartBars"></div></div></div>
@@ -231,9 +232,8 @@ textarea{resize:vertical;min-height:60px;}
       <div class="form-group full" id="gDir" style="display:none"><label>Dirección</label><input type="text" id="fDir" placeholder="Dirección completa"></div>
       <div class="form-group" id="gTel" style="display:none"><label>Teléfono</label><input type="text" id="fTel" placeholder="+56 9..."></div>
     </div>
-    <div id="gCE" style="display:none;margin-top:12px;">
-      <label style="display:block;margin-bottom:5px;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Costo envío (completar al despachar)</label>
-      <input type="number" id="fCE" placeholder="0" style="width:140px;">
+    <div style="background:rgba(241,192,53,.08);border:1px solid rgba(241,192,53,.2);border-radius:8px;padding:10px 14px;margin-top:12px;font-size:12px;color:var(--accent2);font-family:var(--font-mono);display:none;" id="gCE">
+      &#9432; El costo de envío se completa después desde Pendientes, al momento de despachar.
     </div>
   </div>
   <div class="btn-row">
@@ -274,12 +274,16 @@ textarea{resize:vertical;min-height:60px;}
   <div class="card">
     <div class="card-title">Agregar interesado</div>
     <div class="form-grid">
-      <div class="form-group"><label>Nombre</label><input type="text" id="iNom" placeholder="Nombre"></div>
-      <div class="form-group"><label>@usuario / Link</label><input type="text" id="iLink" placeholder="@usuario o link"></div>
-      <div class="form-group full"><label>Qué busca</label><input type="text" id="iPed" placeholder="Ej: Cartas verdes, Lugia, Eevees..."></div>
+      <div class="form-group"><label>Nombre / @usuario</label><input type="text" id="iNom" placeholder="@usuario o nombre"></div>
+      <div class="form-group"><label>Link Instagram</label><input type="text" id="iLink" placeholder="https://instagram.com/..."></div>
+      <div class="form-group full"><label>Qué busca</label><input type="text" id="iPed" placeholder="Ej: Pikachu, Lugia, cartas de agua..."></div>
     </div>
     <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="agregarInteresado()">Guardar</button></div>
   </div>
+  <div class="card" style="padding:14px 20px;">
+    <input type="text" id="intSearch" placeholder="🔍 Buscar por nombre, @usuario o carta..." oninput="renderInteresados()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:var(--font-body);font-size:14px;outline:none;width:100%;transition:border-color .2s;">
+  </div>
+  <div id="intCount" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:8px;padding:0 4px;"></div>
   <div id="interesadosList"></div>
 </div>
 
@@ -288,32 +292,6 @@ textarea{resize:vertical;min-height:60px;}
   <div id="resumenContenido"></div>
 </div>
 
-<div class="section" id="tab-config">
-  <div class="section-title">CONFIG</div>
-  <div class="sb"><div style="font-size:20px;">📊</div><div class="sb-text"><strong>Google Sheets</strong>Conectá tu planilla para sincronizar ventas automáticamente.</div></div>
-  <div class="card">
-    <div class="card-title">Google Apps Script</div>
-    <div class="form-group" style="margin-bottom:10px;"><label>URL del Web App</label><input type="text" id="cfgUrl" placeholder="https://script.google.com/macros/s/..." value="https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec"></div>
-    <div class="form-group" style="margin-bottom:10px;"><label>Nombre de la pestaña</label><input type="text" id="cfgTab" value="Registro de Ventas"></div>
-    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="guardarCfg()">Guardar</button><button class="btn btn-secondary btn-sm" onclick="testSheets()">Probar conexión</button></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Código para Apps Script</div>
-    <textarea readonly id="scriptCode" style="font-family:var(--font-mono);font-size:10px;height:150px;background:var(--surface3);color:var(--muted);"></textarea>
-    <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="copiarScript()">Copiar código</button>
-    <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.9;">
-      <strong style="color:var(--text);display:block;margin-bottom:4px;">Pasos de configuración:</strong>
-      1. Google Sheet → Extensiones → Apps Script<br>
-      2. Pegá el código → Guardar (Ctrl+S)<br>
-      3. Implementar → Nueva implementación → App web → Acceso: Cualquier usuario<br>
-      4. Copiá la URL y pegala arriba → Guardar
-    </div>
-  </div>
-  <div class="divider"></div>
-  <div class="card"><div class="card-title" style="color:var(--red);">Zona peligrosa</div>
-    <button class="btn btn-danger btn-sm" onclick="resetTodo()">Borrar todos los datos locales</button>
-  </div>
-</div>
 
 </main>
 <div class="toast" id="toast"></div>
@@ -385,6 +363,48 @@ const HISTORICO=[
 {id:'I0046',fecha:'2026-05-19',cliente:'Kevin Ares Ponce',canal:'Instagram',link:'https://www.instagram.com/aris_ponce/',tipo:'Otro',desc:'Rapidash + Noctwol. Por ver retiro.',monto:3000,envio:'no',costoEnvio:0,total:3000,estado:'pendiente'}
 ];
 
+
+const INTERESADOS_HISTORICO=[
+  {link:'https://www.instagram.com/aris_ponce/',pedido:'Lucarios'},
+  {link:'https://www.instagram.com/oddity_iv/',pedido:'Pokédex completa'},
+  {link:'https://www.instagram.com/4lejj_ez/',pedido:'Energías'},
+  {link:'https://www.instagram.com/pabgoncor1/',pedido:'Shelgon y Salamance'},
+  {link:'https://www.instagram.com/out_sunbloom9/',pedido:'Togedemaru, Maushold y Tandemaus — es de región'},
+  {link:'https://www.instagram.com/brad.oh/',pedido:'Totodile y Mew'},
+  {link:'https://www.instagram.com/luistache/',pedido:'Cutes, Wigglytuff'},
+  {link:'https://www.instagram.com/rau.fgn/',pedido:'Ultraentes'},
+  {link:'https://www.instagram.com/germang.ug/',pedido:'Sueltas de Perfect Order + 151 Mega Perfect'},
+  {link:'https://www.instagram.com/rgmaderero/',pedido:'Jigglypuff, Wigglytuff y Alcreamie — retiro Gyarados'},
+  {link:'https://www.instagram.com/beancoga/',pedido:'Elekid, Electabuzz y Electivire'},
+  {link:'https://www.instagram.com/andres.ignacioc/',pedido:'Edición HeartGold'},
+  {link:'https://www.instagram.com/mauri.rob/',pedido:'Mightyenas y Poochyenas — apenas le paguen'},
+  {link:'https://www.instagram.com/guaton_martini/',pedido:'Garde, Kirlia, Castaway'},
+  {link:'https://www.instagram.com/macielrtml/',pedido:'Meowth'},
+  {link:'https://www.instagram.com/ron_rosson/',pedido:'Nihilego'},
+  {link:'https://www.instagram.com/zank.klo/',pedido:'Línea de Cyndaquil'},
+  {link:'https://www.instagram.com/eyes_blood321/',pedido:'Gengar, Mewtwo, Charizard, Pikachu, Umbreon, Darkrai, Sylveon, Lucario, Greninja, Lugia, Rayquaza, aves legendarias'},
+  {link:'https://www.instagram.com/maizorito_/',pedido:'Cyndaquils'},
+  {link:'https://www.instagram.com/fervillarroelg/',pedido:'Lillipup y sus evoluciones'},
+  {link:'https://www.instagram.com/alexis25.ppy/',pedido:'Línea evolutiva de Pidgey'},
+  {link:'https://www.instagram.com/code_seiker/',pedido:'Swampert'},
+  {link:'https://www.instagram.com/j_vargascab/',pedido:'Pikachus'},
+  {link:'https://www.instagram.com/meme_chavez/',pedido:'Snivy, Servine o Serperior'},
+  {link:'https://www.instagram.com/valeesitaa.a/',pedido:'Vulpix antiguas'},
+  {link:'https://www.instagram.com/romapatton/',pedido:'Charmander y Charmeleon'},
+  {link:'https://www.instagram.com/autonoma_modulares/',pedido:'Gengar y Mimikyu'},
+  {link:'https://www.instagram.com/cata_guardiola/',pedido:'Emolga y Komiya'},
+  {link:'https://www.instagram.com/sitacote/',pedido:'Eevee'},
+  {link:'https://www.instagram.com/itswaifu_gl/',pedido:'Kangaskhan'},
+  {link:'https://www.instagram.com/orpheedelira/',pedido:'UPC Mega Charizard Victor'},
+  {link:'https://www.instagram.com/patriciofagerston/',pedido:'Cartas Plasma'},
+  {link:'https://www.instagram.com/pabloasinoma/',pedido:'Arceus, Gardevoir, Mewtwo, Gyarados, Lati@s, Pikachu, Mew, Charizard, Alakazam — cambio por Marnies y Grimmsnarl'},
+  {link:'https://www.instagram.com/jaegar.cia/',pedido:'Master Poké Balls'},
+  {link:'https://www.instagram.com/titi_wtf/',pedido:'Pokédex Kanto y Johto'},
+  {link:'https://www.instagram.com/hol_369/',pedido:'Thwackeys'},
+  {link:'https://www.instagram.com/beancoga/',pedido:'Más Thwackeys'},
+  {link:'https://www.instagram.com/vilanttra/',pedido:'Shinys'},
+  {link:'https://www.instagram.com/bjjuanfra/',pedido:'Haunter antiguo'},
+];
 const PACKS_FIJOS={'Pack 55':5500,'Pack 55 + HIT':8500,'Pack 20 Holografico':5000,'Pack 20 Holografico + HIT':8000,'Pack 20 Reverse':5000,'Pack 20 Reverse + HIT':8000,'Pack 50 Entrenadores':5000,'10 cartas HIT':24990};
 const STOCK_PACKS=Object.keys(PACKS_FIJOS);
 let carrito=[],filtroV='todas',filtroP='todos',ventaEntregaId=null;
@@ -465,7 +485,7 @@ function renderDash(){
 function toggleEnvio(){
   const es=document.getElementById('fEnvio').value==='si';
   ['gRF','gRH'].forEach(id=>document.getElementById(id).style.display=es?'none':'');
-  ['gEmp','gCiu','gDir','gTel','gCE'].forEach(id=>document.getElementById(id).style.display=es?'':'none');
+  ['gEmp','gCiu','gDir','gTel'].forEach(id=>document.getElementById(id).style.display=es?'':'none');document.getElementById('gCE').style.display=es?'':'none';
 }
 
 function agregarItem(){
@@ -508,7 +528,7 @@ function guardarVenta(){
   if(!canal)return toast('Seleccioná el canal de venta');
   const envio=document.getElementById('fEnvio').value;
   const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
-  const costoEnvio=parseInt(document.getElementById('fCE').value)||0;
+  const costoEnvio=0; // Se completa al despachar desde Pendientes
   const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:carrito.length===1?carrito[0].nombre:carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:document.getElementById('fEmp').value,ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?(costoEnvio>0?'enviado':'pendiente'):'pendiente',createdAt:new Date().toISOString()};
   const ventas=getVentas();ventas.push(v);setVentas(ventas);
   const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
@@ -519,7 +539,7 @@ function guardarVenta(){
 }
 
 function limpiarForm(){
-  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fCE','fRF','fRH'].forEach(id=>document.getElementById(id).value='');
+  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fRF','fRH'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fCanal').value='';document.getElementById('fEnvio').value='no';
   document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
   toggleEnvio();carrito=[];renderCarrito();
@@ -561,6 +581,14 @@ function cBadge(canal){
 function renderVentas(){
   const ventas=getVentas();const el=document.getElementById('ventasList');
   let lista=[...ventas].reverse();
+  // Filtro por período desde dashboard
+  if(filtroFecha){
+    const hoy=new Date().toISOString().split('T')[0];
+    const now=new Date();
+    if(filtroFecha==='hoy') lista=lista.filter(v=>v.fecha===hoy);
+    else if(filtroFecha==='semana'){const l=new Date(now);l.setDate(now.getDate()-now.getDay()+1);lista=lista.filter(v=>v.fecha>=l.toISOString().split('T')[0]);}
+    else if(filtroFecha==='mes'){const p=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];lista=lista.filter(v=>v.fecha>=p);}
+  }
   if(filtroV==='pendientes')lista=lista.filter(v=>v.estado==='pendiente');
   if(filtroV==='envio')lista=lista.filter(v=>v.envio==='si');
   if(filtroV==='retiro')lista=lista.filter(v=>v.envio==='no');
@@ -583,15 +611,47 @@ function renderVentas(){
   }).join('');
 }
 
-function filtrarV(tipo,btn){filtroV=tipo;document.querySelectorAll('#tab-ventas .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderVentas();}
+function filtrarV(tipo,btn){filtroV=tipo;filtroFecha='';document.querySelectorAll('#tab-ventas .filter-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');renderVentas();}
+
+let filtroFecha='';
+
+function irAVentas(periodo){
+  filtroFecha=periodo;filtroV='todas';
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-ventas').classList.add('active');
+  document.querySelector('[onclick*="ventas"]')?.classList.add('active');
+  renderVentas();
+}
+
+function irAPendientes(){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-pendientes').classList.add('active');
+  document.getElementById('tab-btn-pendientes')?.classList.add('active');
+  filtroP='envio';renderPendientes();
+}
 
 function actCostoEnvio(id){
-  const input=document.getElementById('ce_'+id);
+  // Try both possible input IDs (from ventas list and from pendientes)
+  const input=document.getElementById('ce_'+id)||document.getElementById('cep_'+id);
   const costo=parseInt(input?.value)||0;
-  if(!costo)return toast('Ingresá el costo del envío');
+  if(!costo)return toast('Ingresá el costo del envío Starken');
   const ventas=getVentas();const v=ventas.find(v=>v.id===id);
   if(v){v.costoEnvio=costo;v.total=v.monto+costo;v.estado='enviado';}
-  setVentas(ventas);toast('✓ Envío actualizado');renderAll();
+  setVentas(ventas);
+  // Send update to Google Sheets
+  actualizarSheets(id, costo, v.monto+costo);
+  toast('✓ Enviado — $'+costo.toLocaleString('es-CL')+' costo envío');
+  renderAll();
+}
+
+async function actualizarSheets(id, costoEnvio, total){
+  const cfg=getCfg();if(!cfg.url)return;
+  try{
+    await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado:'enviado',tab:cfg.tab||'Registro de Ventas'})});
+  }catch(e){console.error(e);}
 }
 
 function renderStock(){
@@ -640,22 +700,69 @@ function filtrarP(tipo,btn){filtroP=tipo;document.querySelectorAll('#tab-pendien
 function proxDespacho(){const d=new Date();const day=d.getDay();let dias=day<=3?3-day:day<=5?5-day:3+(7-day);if(dias===0&&d.getHours()>=18)dias=day===3?2:7;const nd=new Date(d);nd.setDate(d.getDate()+dias);return nd.toISOString().split('T')[0];}
 
 function abrirModal(id){ventaEntregaId=id;const v=getVentas().find(v=>v.id===id);document.getElementById('modalInfo').innerHTML='<strong>'+v.cliente+'</strong> — '+(v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo);document.getElementById('modalEntrega').classList.add('open');}
-function confirmarEntrega(){const ventas=getVentas();const v=ventas.find(v=>v.id===ventaEntregaId);if(v)v.estado='entregado';setVentas(ventas);cerrarModal();toast('✓ Marcado como entregado');renderAll();}
+function confirmarEntrega(){
+  const ventas=getVentas();const v=ventas.find(v=>v.id===ventaEntregaId);
+  if(v)v.estado='entregado';
+  setVentas(ventas);
+  // Sync to Sheets
+  actualizarSheets(ventaEntregaId,v.costoEnvio||0,v.total,'entregado');
+  cerrarModal();toast('✓ Marcado como entregado');renderAll();
+}
 function cerrarModal(){document.getElementById('modalEntrega').classList.remove('open');}
 
 function agregarInteresado(){
-  const nombre=document.getElementById('iNom').value.trim();const pedido=document.getElementById('iPed').value.trim();
-  if(!nombre||!pedido)return toast('Completá nombre y pedido');
-  const list=getInteresados();list.push({id:Date.now(),nombre,link:document.getElementById('iLink').value,pedido});
+  const nombre=document.getElementById('iNom').value.trim();
+  const link=document.getElementById('iLink').value.trim();
+  const pedido=document.getElementById('iPed').value.trim();
+  if((!nombre&&!link)||!pedido)return toast('Ingresá al menos usuario y qué busca');
+  const displayNombre=nombre||link.replace('https://www.instagram.com/','@').replace(/\/$/,'');
+  const list=getInteresados();
+  list.push({id:Date.now(),nombre:displayNombre,link:link||nombre,pedido,nuevo:true});
   localStorage.setItem('pdg_interesados',JSON.stringify(list));
   document.getElementById('iNom').value='';document.getElementById('iLink').value='';document.getElementById('iPed').value='';
   toast('✓ Interesado guardado');renderInteresados();
 }
 
 function renderInteresados(){
-  const list=getInteresados();const el=document.getElementById('interesadosList');
-  if(!list.length){el.innerHTML='<div class="empty">SIN INTERESADOS</div>';return;}
-  el.innerHTML=list.map(i=>'<div class="ii"><div class="ii-av">'+i.nombre[0].toUpperCase()+'</div><div class="ii-body"><div class="ii-nombre">'+i.nombre+'</div><div class="ii-pedido">'+i.pedido+'</div>'+(i.link?'<a class="ii-link" href="'+(i.link.startsWith('http')?i.link:'https://instagram.com/'+i.link.replace('@',''))+'" target="_blank">'+i.link+'</a>':'')+'</div><button class="btn btn-secondary btn-sm" onclick="borrarInt('+i.id+')">✕</button></div>').join('');
+  // Merge historico + nuevos guardados
+  const guardados=getInteresados();
+  const guardadosLinks=new Set(guardados.map(i=>i.link));
+  const historico=INTERESADOS_HISTORICO
+    .filter(i=>!guardadosLinks.has(i.link))
+    .map(i=>({
+      id:'hist_'+i.link,
+      nombre:i.link.replace('https://www.instagram.com/','@').replace(/\/$/,''),
+      link:i.link,
+      pedido:i.pedido,
+      historico:true
+    }));
+  let list=[...guardados.filter(i=>!i.borrado),...historico];
+
+  // Search filter
+  const q=(document.getElementById('intSearch')?.value||'').toLowerCase().trim();
+  if(q) list=list.filter(i=>i.nombre.toLowerCase().includes(q)||i.pedido.toLowerCase().includes(q)||(i.link||'').toLowerCase().includes(q));
+
+  const el=document.getElementById('interesadosList');
+  const countEl=document.getElementById('intCount');
+  if(countEl) countEl.textContent=list.length+' interesado'+(list.length!==1?'s':'')+(q?' encontrado'+(list.length!==1?'s':''):'');
+
+  if(!list.length){el.innerHTML='<div class="empty">'+(q?'SIN RESULTADOS PARA "'+q.toUpperCase()+'"':'SIN INTERESADOS')+'</div>';return;}
+  el.innerHTML=list.map(i=>{
+    const href=i.link?(i.link.startsWith('http')?i.link:'https://instagram.com/'+i.link.replace('@','')):'';
+    const isNew=i.nuevo?'border-color:rgba(200,241,53,.3);':'';
+    const bgAv=i.historico?'background:var(--surface3)':'background:rgba(200,241,53,.1)';
+    const borderStyle=i.nuevo?'border-color:rgba(200,241,53,.3)':'';
+    const linkHtml=href?`<a class="ii-link" href="${href}" target="_blank">${i.link}</a>`:'';
+    const deleteBtn=i.historico?`<button class="btn btn-secondary btn-sm" onclick="borrarHistorico('${i.link}')" title="Eliminar">&#10005;</button>`:`<button class="btn btn-secondary btn-sm" onclick="borrarInt(${i.id})" title="Eliminar">&#10005;</button>`;
+    return `<div class="ii" style="${borderStyle}"><div class="ii-av" style="${bgAv}">${i.nombre[0].toUpperCase()}</div><div class="ii-body"><div class="ii-nombre">${i.nombre}</div><div class="ii-pedido">${i.pedido}</div>${linkHtml}</div>${deleteBtn}</div>`;
+  }).join('');
+}
+
+function borrarHistorico(link){
+  const guardados=getInteresados();
+  guardados.push({id:'del_'+Date.now(),link,pedido:'',nombre:'',borrado:true});
+  localStorage.setItem('pdg_interesados',JSON.stringify(guardados));
+  renderInteresados();
 }
 
 function borrarInt(id){const list=getInteresados().filter(i=>i.id!==id);localStorage.setItem('pdg_interesados',JSON.stringify(list));renderInteresados();}
@@ -687,36 +794,15 @@ async function enviarSheets(v){
   try{await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
 }
 
-function guardarCfg(){localStorage.setItem('pdg_cfg',JSON.stringify({url:document.getElementById('cfgUrl').value.trim(),tab:document.getElementById('cfgTab').value.trim()}));toast('✓ Configuración guardada');}
-async function testSheets(){const url=document.getElementById('cfgUrl').value.trim();if(!url)return toast('Ingresá la URL primero');try{await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({test:true})});toast('✓ Conexión enviada');}catch(e){toast('Error de conexión');}}
-function copiarScript(){navigator.clipboard.writeText(document.getElementById('scriptCode').value);toast('✓ Código copiado');}
 
 function programarRec(v){
   if(!('Notification'in window))return;
   Notification.requestPermission().then(p=>{if(p!=='granted')return;const dt=new Date(v.retiroFecha+'T'+v.retiroHora+':00');const diff=dt.getTime()-Date.now()-3600000;if(diff>0&&diff<86400000)setTimeout(()=>{new Notification('⏰ Retiro en 1h — '+v.cliente,{body:v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo});},diff);});
 }
 
-function getScript(){
-  return `function doPost(e){
-  try{
-    var d=JSON.parse(e.postData.contents);
-    if(d.test) return ContentService.createTextOutput('ok');
-    var ss=SpreadsheetApp.getActiveSpreadsheet();
-    var sh=ss.getSheetByName(d.tab)||ss.insertSheet(d.tab);
-    if(sh.getLastRow()===0){
-      sh.appendRow(['Codigo','Fecha','Cliente','Canal','Link','Tipo','Cantidad','Descripcion','Monto','Total','Envio','Empresa','Ciudad','Costo Envio','Estado']);
-      sh.getRange(1,1,1,15).setFontWeight('bold').setBackground('#c8f135');
-    }
-    d.rows.forEach(function(r){
-      sh.appendRow([r.codigo,r.fecha,r.cliente,r.canal,r.link,r.tipo,r.cantidad,r.descripcion,r.monto,r.total,r.envio,r.empresa,r.ciudad,r.costoEnvio,r.estado]);
-    });
-    return ContentService.createTextOutput('ok');
-  }catch(err){return ContentService.createTextOutput('error:'+err);}
-}`;}
 function fmt(n){return '$'+Math.round(n||0).toLocaleString('es-CL');}
 function fmtF(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('es-CL',{day:'numeric',month:'short'});}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
-function resetTodo(){if(!confirm('¿Borrar todos los datos locales?'))return;['pdg_ventas','pdg_stock','pdg_interesados','pdg_cfg'].forEach(k=>localStorage.removeItem(k));carrito=[];renderAll();toast('Datos borrados');}
 </script>
 </body>
 </html>
