@@ -99,9 +99,12 @@ textarea{resize:vertical;min-height:60px;}
 .pi-info h4{font-size:13px;font-weight:600;margin-bottom:3px;}.pi-info p{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
 .pi-actions{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
 .pi-monto{font-family:var(--font-display);font-size:18px;color:var(--accent);}
-.ii{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
-.ii-av{width:36px;height:36px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:15px;color:var(--accent);flex-shrink:0;}
-.ii-body{flex:1;}.ii-nombre{font-size:13px;font-weight:500;margin-bottom:1px;}.ii-pedido{font-size:12px;color:var(--muted);}
+.ii{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;}
+.ii-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.ii-left{display:flex;align-items:center;gap:10px;}
+.ii-av{width:32px;height:32px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;color:var(--accent);flex-shrink:0;}
+.ii-nombre{font-size:13px;font-weight:600;color:var(--text);}
+.ii-pedido{font-size:14px;color:var(--text);font-weight:500;line-height:1.4;margin-bottom:6px;}
 .ii-link{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-decoration:none;}.ii-link:hover{text-decoration:underline;}
 .empty{text-align:center;padding:40px 20px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--accent);color:#000;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;padding:10px 18px;border-radius:7px;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;}
@@ -243,7 +246,13 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 <div class="section" id="tab-ventas">
-  <div class="section-title">VENTAS</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+    <div class="section-title" style="margin-bottom:0;">VENTAS</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="exportarHistorialSheets()" title="Enviar todos los registros históricos a Google Sheets">&#128228; Exportar historial a Sheets</button>
+      <button class="btn btn-danger btn-sm" onclick="limpiarVentasHistoricas()" title="Eliminar ventas precargadas del Excel">&#128465; Limpiar historial Excel</button>
+    </div>
+  </div>
   <div class="filters-row">
     <button class="filter-btn active" onclick="filtrarV('todas',this)">Todas</button>
     <button class="filter-btn" onclick="filtrarV('pendientes',this)">Pendientes</button>
@@ -412,10 +421,6 @@ let carrito=[],filtroV='todas',filtroP='todos',ventaEntregaId=null;
 window.onload=()=>{
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
-  document.getElementById('scriptCode').value=getScript();
-  const cfg=getCfg();
-  if(cfg.url)document.getElementById('cfgUrl').value=cfg.url;
-  if(cfg.tab)document.getElementById('cfgTab').value=cfg.tab;
   if(!localStorage.getItem('pdg_ventas'))localStorage.setItem('pdg_ventas',JSON.stringify(HISTORICO));
   if(!localStorage.getItem('pdg_stock')){
     const s={};STOCK_PACKS.forEach(p=>s[p]=10);
@@ -547,14 +552,22 @@ function limpiarForm(){
 
 async function parsearConv(){
   const texto=document.getElementById('parseInput').value.trim();
-  if(!texto)return toast('Pegá una conversación primero');
+  if(!texto)return toast('Pega texto o datos del cliente primero');
   const btn=event.target;btn.innerHTML='<span class="spinner"></span>Procesando...';btn.disabled=true;
   const tiposStr=Object.keys(PACKS_FIJOS).concat(['Pack Meta','Ilustradores','Hits','Pokédex','Entrenadores','Cajas vacías','Otro']).join(', ');
+  const hoy=new Date().toISOString().split('T')[0];
+  const prompt='Soy un asistente que extrae datos de ventas de cartas Pokemon desde cualquier tipo de texto: conversaciones de WhatsApp/Instagram, resumenes, listas, o texto libre.\n\nTipos de producto: '+tiposStr+'\nPrecios: Pack 55=$5500, Pack 55+HIT=$8500, Pack 20 Holografico=$5000, Pack 20 Holo+HIT=$8000, Pack 20 Reverse=$5000, Pack 20 Reverse+HIT=$8000, Pack 50 Entrenadores=$5000, 10 cartas HIT=$24990\nFecha hoy: '+hoy+'\n\nTexto:\n"""+texto+"""\n\nResponde UNICAMENTE con JSON valido sin markdown ni texto extra:\n{"nombre":"","canal":"Instagram|Pagina Facebook|Messenger|WhatsApp Business|Otro","link":"","envio":"si|no","ciudad":"","telefono":"","direccion":"","retiroFecha":"YYYY-MM-DD","retiroHora":"HH:MM","desc":"","items":[{"nombre":"tipo producto","precio":0,"qty":1}]}';
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:'Extraé datos de venta de cartas Pokémon de esta conversación. Tipos de producto disponibles: '+tiposStr+'. Conversación: +texto+ Respondé SOLO con JSON sin markdown: {"nombre":"","canal":"Instagram|Página Facebook|Messenger|WhatsApp Business|Otro","link":"","envio":"si|no","ciudad":"","telefono":"","direccion":"","retiroFecha":"YYYY-MM-DD","retiroHora":"HH:MM","desc":"","items":[{"nombre":"tipo de producto","precio":0,"qty":1}]}'}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    if(!resp.ok){const err=await resp.text();console.error('API error:',resp.status,err);toast('Error de API ('+resp.status+')');btn.innerHTML='Extraer automaticamente';btn.disabled=false;return;}
     const data=await resp.json();
-    const raw=data.content.map(b=>b.text||'').join('');
-    const p=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(data.error){toast('Error: '+data.error.message);btn.innerHTML='Extraer automaticamente';btn.disabled=false;return;}
+    const raw=data.content.map(b=>b.text||'').join('').trim();
+    const clean=raw.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    const p=JSON.parse(clean);
     if(p.nombre)document.getElementById('fNombre').value=p.nombre;
     if(p.canal)document.getElementById('fCanal').value=p.canal;
     if(p.link)document.getElementById('fLink').value=p.link;
@@ -568,10 +581,11 @@ async function parsearConv(){
     if(p.desc)document.getElementById('fDesc').value=p.desc;
     if(p.items&&p.items.length){carrito=p.items.map(i=>({nombre:i.nombre,precio:i.precio||PACKS_FIJOS[i.nombre]||0,qty:i.qty||1}));renderCarrito();}
     document.getElementById('parseInput').value='';
-    toast('✓ Datos extraídos — revisá y confirmá');
-  }catch(e){toast('Error al procesar');console.error(e);}
-  btn.innerHTML='Extraer automáticamente';btn.disabled=false;
+    toast('✓ Datos extraidos — revisa y confirma');
+  }catch(e){console.error('Parse error:',e);toast('No se pudo interpretar — intenta con mas detalle');}
+  btn.innerHTML='Extraer automaticamente';btn.disabled=false;
 }
+
 
 function cBadge(canal){
   const m={'Instagram':'b-ig','Página Facebook':'b-fb','Messenger':'b-fb','WhatsApp Business':'b-wa'};
@@ -749,12 +763,17 @@ function renderInteresados(){
   if(!list.length){el.innerHTML='<div class="empty">'+(q?'SIN RESULTADOS PARA "'+q.toUpperCase()+'"':'SIN INTERESADOS')+'</div>';return;}
   el.innerHTML=list.map(i=>{
     const href=i.link?(i.link.startsWith('http')?i.link:'https://instagram.com/'+i.link.replace('@','')):'';
-    const isNew=i.nuevo?'border-color:rgba(200,241,53,.3);':'';
-    const bgAv=i.historico?'background:var(--surface3)':'background:rgba(200,241,53,.1)';
-    const borderStyle=i.nuevo?'border-color:rgba(200,241,53,.3)':'';
+    const bgAv=i.historico?'background:var(--surface3)':'background:rgba(200,241,53,.15)';
+    const borderStyle=i.nuevo?'border-color:rgba(200,241,53,.4)':'';
     const linkHtml=href?`<a class="ii-link" href="${href}" target="_blank">${i.link}</a>`:'';
-    const deleteBtn=i.historico?`<button class="btn btn-secondary btn-sm" onclick="borrarHistorico('${i.link}')" title="Eliminar">&#10005;</button>`:`<button class="btn btn-secondary btn-sm" onclick="borrarInt(${i.id})" title="Eliminar">&#10005;</button>`;
-    return `<div class="ii" style="${borderStyle}"><div class="ii-av" style="${bgAv}">${i.nombre[0].toUpperCase()}</div><div class="ii-body"><div class="ii-nombre">${i.nombre}</div><div class="ii-pedido">${i.pedido}</div>${linkHtml}</div>${deleteBtn}</div>`;
+    const deleteBtn=i.historico
+      ?`<button class="btn btn-secondary btn-sm" onclick="borrarHistorico('${i.link}')" title="Eliminar">&#10005;</button>`
+      :`<button class="btn btn-secondary btn-sm" onclick="borrarInt(${i.id})" title="Eliminar">&#10005;</button>`;
+    return `<div class="ii" style="${borderStyle}">
+      <div class="ii-top"><div class="ii-left"><div class="ii-av" style="${bgAv}">${i.nombre[0].toUpperCase()}</div><div class="ii-nombre">${i.nombre}</div></div>${deleteBtn}</div>
+      <div class="ii-pedido">&#128204; ${i.pedido}</div>
+      ${linkHtml}
+    </div>`;
   }).join('');
 }
 
@@ -799,6 +818,57 @@ function programarRec(v){
   if(!('Notification'in window))return;
   Notification.requestPermission().then(p=>{if(p!=='granted')return;const dt=new Date(v.retiroFecha+'T'+v.retiroHora+':00');const diff=dt.getTime()-Date.now()-3600000;if(diff>0&&diff<86400000)setTimeout(()=>{new Notification('⏰ Retiro en 1h — '+v.cliente,{body:v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo});},diff);});
 }
+
+async function exportarHistorialSheets(){
+  const cfg=getCfg();
+  if(!cfg.url){toast('Sin URL de Sheets configurada');return;}
+  const ventas=getVentas();
+  if(!ventas.length){toast('Sin ventas para exportar');return;}
+  const btn=event.target;
+  btn.innerHTML='<span class="spinner"></span>Exportando...';btn.disabled=true;
+  // Send in batches of 10
+  let ok=0;
+  for(let b=0;b<ventas.length;b+=10){
+    const batch=ventas.slice(b,b+10);
+    const rows=[];
+    batch.forEach(v=>{
+      const items=v.items||[{nombre:v.tipo,qty:v.qty||1,precio:v.monto}];
+      items.forEach((item,idx)=>{
+        rows.push({
+          codigo:v.id,fecha:v.fecha,cliente:v.cliente,canal:v.canal,link:v.link,
+          tipo:item.nombre,cantidad:item.qty||1,descripcion:idx===0?v.desc||'':'',
+          monto:item.precio*(item.qty||1),total:idx===0?v.total:'',
+          envio:v.envio==='si'?'Si':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',
+          costoEnvio:idx===0?v.costoEnvio||0:'',estado:v.estado||'pendiente'
+        });
+      });
+    });
+    try{
+      await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});
+      ok+=batch.length;
+    }catch(e){console.error(e);}
+  }
+  btn.innerHTML='&#128228; Exportar historial a Sheets';btn.disabled=false;
+  toast('✓ '+ok+' ventas exportadas a Google Sheets');
+}
+
+function limpiarVentasHistoricas(){
+  const ventas=getVentas();
+  const historicosIds=new Set(HISTORICO.map(h=>h.id));
+  const nuevas=ventas.filter(v=>!historicosIds.has(v.id));
+  if(ventas.length===nuevas.length){toast('No hay ventas del Excel para limpiar');return;}
+  const cantidad=ventas.length-nuevas.length;
+  if(!confirm('¿Eliminar '+cantidad+' ventas del historial importado del Excel? Las ventas nuevas que registraste se mantienen.'))return;
+  setVentas(nuevas);
+  // Reset stock
+  const s={};STOCK_PACKS.forEach(p=>s[p]=10);
+  nuevas.forEach(v=>{if(v.items)v.items.forEach(i=>{if(s[i.nombre]!==undefined)s[i.nombre]=Math.max(0,s[i.nombre]-i.qty);});});
+  setStock(s);
+  toast('✓ '+cantidad+' ventas del Excel eliminadas');
+  renderAll();
+}
+
 
 function fmt(n){return '$'+Math.round(n||0).toLocaleString('es-CL');}
 function fmtF(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('es-CL',{day:'numeric',month:'short'});}
