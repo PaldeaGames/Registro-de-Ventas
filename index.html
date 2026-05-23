@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paldea Games — Gestión de Ventas</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#09090b;--surface:#111113;--surface2:#18181b;--surface3:#27272a;--border:#2a2a2d;--border2:#3f3f46;--accent:#c8f135;--accent2:#f1c035;--red:#f87171;--blue:#60a5fa;--text:#fafafa;--muted:#71717a;--muted2:#52525b;--font-display:'Bebas Neue',sans-serif;--font-mono:'DM Mono',monospace;--font-body:'DM Sans',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-height:100vh;overflow-x:hidden;}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(9,9,11,0.96);backdrop-filter:blur(12px);}
+.logo{font-family:var(--font-display);font-size:20px;letter-spacing:3px;color:var(--accent);}
+.logo span{color:var(--text);}
+.hdate{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+nav{display:flex;gap:1px;padding:0 24px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;background:var(--surface);}
+nav::-webkit-scrollbar{display:none;}
+.tab{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:12px 14px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.badge-count{display:inline-block;background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px;vertical-align:middle;}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 80px;}
+.section{display:none;}.section.active{display:block;}
+.section-title{font-family:var(--font-display);font-size:32px;letter-spacing:3px;color:var(--accent);margin-bottom:20px;line-height:1;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;}
+.card-title{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+@media(max-width:540px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.stat-label{font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.stat-value{font-family:var(--font-display);font-size:26px;letter-spacing:1px;color:var(--accent);}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+.chart-wrap{height:130px;}.chart-bars{display:flex;align-items:flex-end;gap:5px;height:100%;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;}
+.bar{width:100%;border-radius:3px 3px 0 0;transition:height .5s;min-height:2px;}
+.bar.today{background:var(--accent);}.bar.other{background:var(--surface3);}
+.bar-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:540px){.form-grid{grid-template-columns:1fr;}}
+.form-group{display:flex;flex-direction:column;gap:5px;}.form-group.full{grid-column:1/-1;}
+label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--font-body);font-size:14px;outline:none;transition:border-color .2s;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+select option{background:var(--surface2);}
+textarea{resize:vertical;min-height:60px;}
+.add-pack-row{display:grid;grid-template-columns:1fr 56px auto;gap:8px;align-items:center;margin-bottom:8px;}
+.ci{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 12px;margin-bottom:6px;}
+.ci-name{font-size:13px;font-weight:500;}.ci-qty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+.ci-price{font-family:var(--font-mono);font-size:12px;color:var(--accent);}
+.btn-rm{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:15px;padding:2px 5px;transition:color .2s;}
+.btn-rm:hover{color:var(--red);}
+.ct{display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:1px solid var(--border);margin-top:2px;}
+.ct-label{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.ct-val{font-family:var(--font-display);font-size:24px;color:var(--accent);}
+.btn{font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 18px;border:none;border-radius:7px;cursor:pointer;transition:all .2s;}
+.btn-primary{background:var(--accent);color:#000;font-weight:600;}.btn-primary:hover{background:#d8ff40;}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border);}.btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red);}.btn-danger:hover{background:var(--red);color:#fff;}
+.btn-sm{padding:7px 12px;font-size:10px;}.btn-row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.parse-box{background:rgba(200,241,53,.04);border:1px dashed rgba(200,241,53,.25);border-radius:10px;padding:14px;margin-bottom:18px;}
+.parse-box-title{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+.venta-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;transition:border-color .2s;}
+.venta-row:hover{border-color:var(--border2);}
+.vh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+.vc{font-weight:600;font-size:14px;}.vco{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:1px;}
+.vt{font-family:var(--font-display);font-size:20px;color:var(--accent);text-align:right;}
+.vts{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-align:right;}
+.vm{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.badge{font-family:var(--font-mono);font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:100px;text-transform:uppercase;}
+.b-ig{background:rgba(200,100,200,.12);color:#d580d5;border:1px solid rgba(200,100,200,.25);}
+.b-fb{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.25);}
+.b-wa{background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.25);}
+.b-otro{background:var(--surface3);color:var(--muted);border:1px solid var(--border);}
+.b-envio{background:rgba(200,241,53,.1);color:var(--accent);border:1px solid rgba(200,241,53,.25);}
+.b-retiro{background:rgba(241,192,53,.1);color:var(--accent2);border:1px solid rgba(241,192,53,.25);}
+.b-pendiente{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.b-entregado{background:var(--surface2);color:var(--muted2);border:1px solid var(--border);}
+.b-enviado{background:rgba(200,241,53,.08);color:#888;border:1px solid var(--border);}
+.vd{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);}
+.vn{font-size:12px;color:var(--muted);margin-top:5px;font-style:italic;border-left:2px solid var(--border);padding-left:8px;}
+.ce-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.ce-row input{width:130px;padding:6px 10px;font-size:12px;}
+.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color .2s;}
+.sc:hover{border-color:var(--border2);}
+.sc-name{font-size:12px;font-weight:500;margin-bottom:3px;line-height:1.3;}
+.sc-price{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:10px;}
+.sc-bar{height:3px;background:var(--surface3);border-radius:2px;margin-bottom:7px;overflow:hidden;}
+.sc-bf{height:100%;border-radius:2px;background:var(--accent);transition:width .5s;}
+.sc-qty{font-family:var(--font-display);font-size:30px;line-height:1;}
+.sc-qty.low{color:var(--red);}.sc-qty.mid{color:var(--accent2);}.sc-qty.ok{color:var(--accent);}
+.sc-edit{display:flex;gap:5px;margin-top:8px;}.sc-edit input{width:52px;padding:5px 7px;font-size:11px;}
+.pi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;}
+.pf{text-align:center;background:var(--surface2);border-radius:7px;padding:8px 10px;}
+.pf-d{font-family:var(--font-display);font-size:26px;color:var(--accent);line-height:1;}
+.pf-m{font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.pi-info h4{font-size:13px;font-weight:600;margin-bottom:3px;}.pi-info p{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+.pi-actions{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
+.pi-monto{font-family:var(--font-display);font-size:18px;color:var(--accent);}
+.ii{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.ii-av{width:36px;height:36px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:15px;color:var(--accent);flex-shrink:0;}
+.ii-body{flex:1;}.ii-nombre{font-size:13px;font-weight:500;margin-bottom:1px;}.ii-pedido{font-size:12px;color:var(--muted);}
+.ii-link{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-decoration:none;}.ii-link:hover{text-decoration:underline;}
+.empty{text-align:center;padding:40px 20px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--accent);color:#000;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;padding:10px 18px;border-radius:7px;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:var(--font-display);font-size:26px;letter-spacing:2px;color:var(--accent);margin-bottom:16px;}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.filters-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.filter-btn{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;text-transform:uppercase;}
+.filter-btn:hover,.filter-btn.active{border-color:var(--accent);color:var(--accent);}
+.sb{background:rgba(200,241,53,.05);border:1px solid rgba(200,241,53,.18);border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.sb-text{flex:1;font-size:12px;color:var(--muted);}.sb-text strong{color:var(--text);display:block;margin-bottom:1px;}
+.divider{height:1px;background:var(--border);margin:18px 0;}
+.sem-table{width:100%;border-collapse:collapse;font-size:12px;}
+.sem-table th{font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;}
+.sem-table th:first-child{text-align:left;}
+.sem-table td{padding:7px 10px;border-bottom:1px solid rgba(42,42,45,.4);text-align:right;font-family:var(--font-mono);font-size:11px;}
+.sem-table td:first-child{text-align:left;color:var(--text);}
+.va{color:var(--accent);}.vm2{color:var(--muted);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">PALDEA<span> GAMES</span></div>
+  <div class="hdate" id="headerDate"></div>
+</header>
+<nav>
+  <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
+  <button class="tab" onclick="showTab('nueva',this)">+ Nueva Venta</button>
+  <button class="tab" onclick="showTab('ventas',this)">Ventas</button>
+  <button class="tab" onclick="showTab('stock',this)">Stock</button>
+  <button class="tab" onclick="showTab('pendientes',this)" id="tab-btn-pendientes">Pendientes</button>
+  <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
+  <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
+  <button class="tab" onclick="showTab('config',this)">Config</button>
+</nav>
+<main>
+
+<div class="section active" id="tab-dashboard">
+  <div class="section-title">DASHBOARD</div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-label">Hoy</div><div class="stat-value" id="sHoy">$0</div><div class="stat-sub" id="sHoySub">0 ventas</div></div>
+    <div class="stat-box"><div class="stat-label">Esta semana</div><div class="stat-value" id="sSem">$0</div><div class="stat-sub" id="sSemSub">0 ventas</div></div>
+    <div class="stat-box"><div class="stat-label">Este mes</div><div class="stat-value" id="sMes">$0</div><div class="stat-sub" id="sMesSub">0 ventas</div></div>
+    <div class="stat-box"><div class="stat-label">Total histórico</div><div class="stat-value" id="sTotal">$0</div><div class="stat-sub" id="sTotalSub">0 ventas</div></div>
+    <div class="stat-box"><div class="stat-label">Envíos pendientes</div><div class="stat-value" id="sEnvPend" style="color:var(--accent2)">0</div><div class="stat-sub">por despachar</div></div>
+    <div class="stat-box"><div class="stat-label">Ticket promedio</div><div class="stat-value" id="sTicket">$0</div><div class="stat-sub">mes actual</div></div>
+  </div>
+  <div class="card"><div class="card-title">Ingresos — Últimos 7 días</div><div class="chart-wrap"><div class="chart-bars" id="chartBars"></div></div></div>
+  <div class="card"><div class="card-title">Tipo más vendido</div><div id="topProd" style="font-size:14px;font-weight:500;">—</div></div>
+  <div class="card"><div class="card-title">Próximos despachos</div><div id="dashDesp"></div></div>
+</div>
+
+<div class="section" id="tab-nueva">
+  <div class="section-title">NUEVA VENTA</div>
+  <div class="parse-box">
+    <div class="parse-box-title">⚡ Pegar conversación — IA extrae los datos</div>
+    <textarea id="parseInput" placeholder="Pegá aquí el texto de la conversación con el cliente..." style="margin-bottom:8px;"></textarea>
+    <button class="btn btn-secondary btn-sm" onclick="parsearConv()">Extraer automáticamente</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Cliente</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre cliente</label><input type="text" id="fNombre" placeholder="Ej: Carlos Gutiérrez"></div>
+      <div class="form-group"><label>Canal de venta</label>
+        <select id="fCanal">
+          <option value="">Seleccionar...</option>
+          <option>Instagram</option><option>Página Facebook</option>
+          <option>Messenger</option><option>WhatsApp Business</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Usuario / Link</label><input type="text" id="fLink" placeholder="https://instagram.com/... o @usuario"></div>
+      <div class="form-group"><label>Fecha venta</label><input type="date" id="fFecha"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Productos</div>
+    <div class="add-pack-row">
+      <select id="fProdSel">
+        <option value="">Elegir producto...</option>
+        <optgroup label="Packs fijos">
+          <option value="Pack 55|5500">Pack 55 — $5.500</option>
+          <option value="Pack 55 + HIT|8500">Pack 55 + HIT — $8.500</option>
+          <option value="Pack 20 Holografico|5000">Pack 20 Holográfico — $5.000</option>
+          <option value="Pack 20 Holografico + HIT|8000">Pack 20 Holográfico + HIT — $8.000</option>
+          <option value="Pack 20 Reverse|5000">Pack 20 Reverse (Brillantes) — $5.000</option>
+          <option value="Pack 20 Reverse + HIT|8000">Pack 20 Reverse + HIT — $8.000</option>
+          <option value="Pack 50 Entrenadores|5000">Pack 50 Entrenadores — $5.000</option>
+          <option value="10 cartas HIT|24990">10 cartas HIT — $24.990</option>
+        </optgroup>
+        <optgroup label="Otros tipos">
+          <option value="Pack Meta|0">Pack Meta (precio libre)</option>
+          <option value="Ilustradores|0">Ilustradores (precio libre)</option>
+          <option value="Hits|0">Hits (precio libre)</option>
+          <option value="Pokédex|0">Pokédex (precio libre)</option>
+          <option value="Entrenadores|0">Entrenadores (precio libre)</option>
+          <option value="Cajas vacías|0">Cajas vacías (precio libre)</option>
+          <option value="Otro|0">Otro (precio libre)</option>
+        </optgroup>
+      </select>
+      <input type="number" id="fQty" value="1" min="1">
+      <button class="btn btn-secondary btn-sm" onclick="agregarItem()">+ Agregar</button>
+    </div>
+    <div id="carritoItems"></div>
+    <div class="ct"><span class="ct-label">Total</span><span class="ct-val" id="carritoTotal">$0</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Descripción libre</div>
+    <textarea id="fDesc" placeholder="Detalle de la venta — cartas específicas, notas, etc."></textarea>
+  </div>
+  <div class="card">
+    <div class="card-title">Entrega</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>¿Requiere envío?</label>
+        <select id="fEnvio" onchange="toggleEnvio()">
+          <option value="no">No — Retiro presencial</option>
+          <option value="si">Sí — Envío Starken</option>
+        </select>
+      </div>
+      <div class="form-group" id="gRF"><label>Fecha retiro</label><input type="date" id="fRF"></div>
+      <div class="form-group" id="gRH"><label>Hora retiro</label><input type="time" id="fRH"></div>
+      <div class="form-group" id="gEmp" style="display:none"><label>Empresa envío</label>
+        <select id="fEmp"><option>Starken</option><option>Otro</option></select>
+      </div>
+      <div class="form-group" id="gCiu" style="display:none"><label>Ciudad destino</label><input type="text" id="fCiu" placeholder="Ej: Valparaíso"></div>
+      <div class="form-group full" id="gDir" style="display:none"><label>Dirección</label><input type="text" id="fDir" placeholder="Dirección completa"></div>
+      <div class="form-group" id="gTel" style="display:none"><label>Teléfono</label><input type="text" id="fTel" placeholder="+56 9..."></div>
+    </div>
+    <div id="gCE" style="display:none;margin-top:12px;">
+      <label style="display:block;margin-bottom:5px;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Costo envío (completar al despachar)</label>
+      <input type="number" id="fCE" placeholder="0" style="width:140px;">
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="guardarVenta()">Guardar venta</button>
+    <button class="btn btn-secondary" onclick="limpiarForm()">Limpiar</button>
+  </div>
+</div>
+
+<div class="section" id="tab-ventas">
+  <div class="section-title">VENTAS</div>
+  <div class="filters-row">
+    <button class="filter-btn active" onclick="filtrarV('todas',this)">Todas</button>
+    <button class="filter-btn" onclick="filtrarV('pendientes',this)">Pendientes</button>
+    <button class="filter-btn" onclick="filtrarV('envio',this)">Con envío</button>
+    <button class="filter-btn" onclick="filtrarV('retiro',this)">Retiro</button>
+    <button class="filter-btn" onclick="filtrarV('enviado',this)">Enviados</button>
+  </div>
+  <div id="ventasList"></div>
+</div>
+
+<div class="section" id="tab-stock">
+  <div class="section-title">STOCK</div>
+  <div class="stock-grid" id="stockGrid"></div>
+</div>
+
+<div class="section" id="tab-pendientes">
+  <div class="section-title">PENDIENTES</div>
+  <div class="filters-row">
+    <button class="filter-btn active" onclick="filtrarP('todos',this)">Todos</button>
+    <button class="filter-btn" onclick="filtrarP('envio',this)">Envíos</button>
+    <button class="filter-btn" onclick="filtrarP('retiro',this)">Retiros</button>
+  </div>
+  <div id="pendientesList"></div>
+</div>
+
+<div class="section" id="tab-interesados">
+  <div class="section-title">INTERESADOS</div>
+  <div class="card">
+    <div class="card-title">Agregar interesado</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre</label><input type="text" id="iNom" placeholder="Nombre"></div>
+      <div class="form-group"><label>@usuario / Link</label><input type="text" id="iLink" placeholder="@usuario o link"></div>
+      <div class="form-group full"><label>Qué busca</label><input type="text" id="iPed" placeholder="Ej: Cartas verdes, Lugia, Eevees..."></div>
+    </div>
+    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="agregarInteresado()">Guardar</button></div>
+  </div>
+  <div id="interesadosList"></div>
+</div>
+
+<div class="section" id="tab-resumen">
+  <div class="section-title">RESUMEN SEMANAL</div>
+  <div id="resumenContenido"></div>
+</div>
+
+<div class="section" id="tab-config">
+  <div class="section-title">CONFIG</div>
+  <div class="sb"><div style="font-size:20px;">📊</div><div class="sb-text"><strong>Google Sheets</strong>Conectá tu planilla para sincronizar ventas automáticamente.</div></div>
+  <div class="card">
+    <div class="card-title">Google Apps Script</div>
+    <div class="form-group" style="margin-bottom:10px;"><label>URL del Web App</label><input type="text" id="cfgUrl" placeholder="https://script.google.com/macros/s/..."></div>
+    <div class="form-group" style="margin-bottom:10px;"><label>Nombre de la pestaña</label><input type="text" id="cfgTab" value="Registro de Ventas"></div>
+    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="guardarCfg()">Guardar</button><button class="btn btn-secondary btn-sm" onclick="testSheets()">Probar conexión</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Código para Apps Script</div>
+    <textarea readonly id="scriptCode" style="font-family:var(--font-mono);font-size:10px;height:150px;background:var(--surface3);color:var(--muted);"></textarea>
+    <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="copiarScript()">Copiar código</button>
+    <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.9;">
+      <strong style="color:var(--text);display:block;margin-bottom:4px;">Pasos de configuración:</strong>
+      1. Google Sheet → Extensiones → Apps Script<br>
+      2. Pegá el código → Guardar (Ctrl+S)<br>
+      3. Implementar → Nueva implementación → App web → Acceso: Cualquier usuario<br>
+      4. Copiá la URL y pegala arriba → Guardar
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="card"><div class="card-title" style="color:var(--red);">Zona peligrosa</div>
+    <button class="btn btn-danger btn-sm" onclick="resetTodo()">Borrar todos los datos locales</button>
+  </div>
+</div>
+
+</main>
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modalEntrega">
+  <div class="modal">
+    <div class="modal-title">MARCAR ENTREGADO</div>
+    <div id="modalInfo" style="font-size:13px;margin-bottom:16px;color:var(--muted);"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="confirmarEntrega()">Confirmar</button>
+      <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const HISTORICO=[
+{id:'I0001',fecha:'2026-04-23',cliente:'Sebastián Madrid',canal:'Instagram',link:'https://www.instagram.com/sebastian_a_madrid/',tipo:'Otro',desc:'Chayas mal estado +770 $35.000 y Blaziken',monto:55000,envio:'si',empresa:'Starken',ciudad:'Coltauco',costoEnvio:13640,total:68640,estado:'enviado'},
+{id:'I0002',fecha:'2026-04-23',cliente:'Sebastián Aguila',canal:'Instagram',link:'https://www.instagram.com/_se',tipo:'Pack Meta',desc:'Arboliva y Familia',monto:5500,envio:'no',costoEnvio:0,total:5500,estado:'entregado'},
+{id:'I0003',fecha:'2026-04-23',cliente:'Ignacio Cortés',canal:'Instagram',link:'https://www.instagram.com/nac',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
+{id:'O0001',fecha:'2026-04-23',cliente:'Kevin',canal:'Otro',link:'https://www.instagram.com/darklight.poytcg',tipo:'Hits',desc:'Charizard GX Hidden Fates CardFest',monto:320000,envio:'no',costoEnvio:0,total:320000,estado:'entregado'},
+{id:'I0004',fecha:'2026-04-23',cliente:'Luis Morales',canal:'Instagram',link:'https://www.instagram.com/avmz_bizkit/',tipo:'Ilustradores',desc:'Gran cantidad de Yuka Morii',monto:50000,envio:'si',empresa:'Starken',ciudad:'Quilicura, Santiago',costoEnvio:3410,total:53410,estado:'enviado'},
+{id:'I0005',fecha:'2026-04-23',cliente:'Sabrina Améstica',canal:'Instagram',link:'https://www.instagram.com/xvl__5/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Barnechea, Santiago',costoEnvio:3410,total:8910,estado:'enviado'},
+{id:'I0006',fecha:'2026-04-23',cliente:'Gabriel Varela',canal:'Instagram',link:'https://www.instagram.com/gab02217',tipo:'Otro',desc:'Dragonite Holo set MEW',monto:1000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:5990,estado:'enviado'},
+{id:'I0007',fecha:'2026-04-23',cliente:'Catalina',canal:'Instagram',link:'https://www.instagram.com/23_11.jpg',tipo:'Ilustradores',desc:'Fan de Asako, faltan: Electrode, audino, Altaria y otro',monto:20000,envio:'no',costoEnvio:0,total:20000,estado:'entregado'},
+{id:'F0001',fecha:'2026-04-23',cliente:'Sebastián Sagredo',canal:'Página Facebook',link:'https://www.facebook.com/sebastardo666',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Cerro Navia',costoEnvio:3590,total:9090,estado:'enviado'},
+{id:'I0008',fecha:'2026-04-23',cliente:'Aníbal Vasquez',canal:'Instagram',link:'https://www.instagram.com/alvaronicolas',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
+{id:'I0009',fecha:'2026-04-23',cliente:'María Cristina Rosa',canal:'Instagram',link:'https://www.instagram.com/mariacristina.rag/',tipo:'Ilustradores',desc:'Muchas cosas',monto:28000,envio:'si',empresa:'Starken',ciudad:'Copiapo',costoEnvio:4990,total:32990,estado:'enviado'},
+{id:'I0010',fecha:'2026-04-23',cliente:'Pablo Flores',canal:'Instagram',link:'https://www.instagram.com/pabloasinoma',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],desc:'2 packs 55 + 1 caja etb Charizard',monto:12000,envio:'no',costoEnvio:0,total:12000,estado:'entregado'},
+{id:'I0011',fecha:'2026-04-23',cliente:'Mauricio Nacarte',canal:'Instagram',link:'https://www.instagram.com/mauu9.99/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Los Andes',costoEnvio:4990,total:10490,estado:'enviado'},
+{id:'I0012',fecha:'2026-04-23',cliente:'Alonso Muñoz',canal:'Instagram',link:'https://www.instagram.com/kain.alonso',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:4}],monto:22000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:26990,estado:'enviado'},
+{id:'I0013',fecha:'2026-04-23',cliente:'Víctor Riveros',canal:'Instagram',link:'https://www.instagram.com/vito_mrc',tipo:'Otro',desc:'Booster Falsekemon',monto:29990,envio:'no',costoEnvio:0,total:29990,estado:'entregado'},
+{id:'I0014',fecha:'2026-04-23',cliente:'Jorge Rodríguez',canal:'Instagram',link:'https://www.instagram.com/jrodriguez.forne',tipo:'Cajas vacías',desc:'2 cajas vacias + Pikachu Base Set 2',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
+{id:'I0015',fecha:'2026-04-23',cliente:'Kevin Córdova',canal:'Instagram',link:'https://www.instagram.com/fake.gif/',tipo:'Otro',desc:'Jigglypuff + tandemaus',monto:2500,envio:'no',costoEnvio:0,total:2500,estado:'entregado'},
+{id:'I0016',fecha:'2026-04-23',cliente:'Alvaro Opazo',canal:'Instagram',link:'https://www.instagram.com/alvaropazo_/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
+{id:'I0017',fecha:'2026-04-23',cliente:'Marcos Bizama',canal:'Instagram',link:'https://www.instagram.com/bizamaimportaciones/',tipo:'Pack Meta',desc:'Mega Garde + otros antiguos',monto:20000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:24990,estado:'enviado'},
+{id:'I0018',fecha:'2026-04-23',cliente:'Matías Saez',canal:'Instagram',link:'https://www.instagram.com/matias.saez/',tipo:'Entrenadores',desc:'paldean student, atticus, ortega, clive, hilda (Todos FA)',monto:28000,envio:'si',empresa:'Starken',ciudad:'San Miguel',costoEnvio:3590,total:31590,estado:'enviado'},
+{id:'I0019',fecha:'2026-04-23',cliente:'Ignacio Dabadie',canal:'Instagram',link:'https://www.instagram.com/nacho.dabadie/',tipo:'Pack Meta',desc:'pack inicial de juego',monto:9000,envio:'no',costoEnvio:0,total:9000,estado:'entregado'},
+{id:'I0020',fecha:'2026-04-28',cliente:'Thomas Brad',canal:'Instagram',link:'https://www.instagram.com/brad.oh/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
+{id:'I0021',fecha:'2026-04-29',cliente:'Ignacio Dabadie',canal:'Instagram',link:'https://www.instagram.com/nacho.dabadie/',tipo:'Pack 20 Holografico',items:[{nombre:'Pack 20 Holografico',precio:5000,qty:1}],desc:'2 packs Entrenadores + 2 cajas ETBS + 1 pack Holo con Hit',monto:20000,envio:'no',costoEnvio:0,total:20000,estado:'entregado'},
+{id:'M0001',fecha:'2026-04-29',cliente:'Felipe Valdebenito',canal:'Messenger',link:'https://www.facebook.com/Pipe.Omar/',tipo:'Hits',desc:'Fanatico de Eevees, le faltan 20',monto:36000,envio:'no',costoEnvio:0,total:36000,estado:'entregado'},
+{id:'I0022',fecha:'2026-04-29',cliente:'Matias Fuentes',canal:'Instagram',link:'https://www.instagram.com/mati.fonts/',tipo:'Otro',desc:'Fan de Slowpokes + 1 pack de solo Hits',monto:55990,envio:'no',costoEnvio:0,total:55990,estado:'entregado'},
+{id:'I0023',fecha:'2026-04-30',cliente:'Andrés Toro',canal:'Instagram',link:'https://www.instagram.com/patriciofagerston/',tipo:'Otro',desc:'Pack Plasma',monto:28000,envio:'no',costoEnvio:0,total:28000,estado:'entregado'},
+{id:'I0024',fecha:'2026-04-30',cliente:'Juan Pablo',canal:'Instagram',link:'https://www.instagram.com/juvmpi/',tipo:'Otro',desc:'1 pack 55+ 1 pack Holo Hit',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
+{id:'I0025',fecha:'2026-04-30',cliente:'Antonio Pavez',canal:'Instagram',link:'https://www.instagram.com/antojebus/',tipo:'Pack Meta',desc:'4 dunsparce lanas normal + 4 reverse',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
+{id:'I0026',fecha:'2026-04-30',cliente:'Lori Saenz',canal:'Instagram',link:'https://www.instagram.com/lorisaenz/',tipo:'Pack Meta',desc:'Energías Legacy + Ignicion',monto:10500,envio:'si',empresa:'Starken',ciudad:'Iquique',costoEnvio:7910,total:18410,estado:'enviado'},
+{id:'I0027',fecha:'2026-04-30',cliente:'Samuel Jofre',canal:'Instagram',link:'https://www.instagram.com/samuel.andres_jh/',tipo:'Pack Meta',desc:'Mega Garde + Hypno reverse 151',monto:10500,envio:'si',empresa:'Starken',ciudad:'Talcahuano',costoEnvio:5240,total:15740,estado:'enviado'},
+{id:'O0002',fecha:'2026-05-02',cliente:'Herman Hoffman',canal:'Otro',link:'56950146487',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],desc:'Pack 55 + Hit',monto:8500,envio:'si',empresa:'Starken',ciudad:'La Florida',costoEnvio:3480,total:11980,estado:'enviado'},
+{id:'I0028',fecha:'2026-05-02',cliente:'Marco Olivares',canal:'Instagram',link:'https://www.instagram.com/tallermanosyvetas/',tipo:'Pack Meta',desc:'Machamp y otros',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
+{id:'I0029',fecha:'2026-05-02',cliente:'Carlos Troncoso',canal:'Instagram',link:'https://www.instagram.com/orpheedelira/',tipo:'Otro',desc:'Comision venta UPC Victor, Comprador Fuerte',monto:25000,envio:'no',costoEnvio:0,total:25000,estado:'entregado'},
+{id:'I0030',fecha:'2026-05-04',cliente:'Diego Mendez',canal:'Instagram',link:'https://www.instagram.com/diego.mendez.b/',tipo:'Otro',desc:'treckos',monto:10000,envio:'no',costoEnvio:0,total:10000,estado:'entregado'},
+{id:'M0002',fecha:'2026-05-04',cliente:'Ignacio Olivares',canal:'Messenger',link:'Vaib Check',tipo:'Otro',desc:'Comision UPC Venta',monto:25000,envio:'no',costoEnvio:0,total:25000,estado:'entregado'},
+{id:'I0031',fecha:'2026-05-04',cliente:'Gladys Leon',canal:'Instagram',link:'https://www.instagram.com/itswaifu_gl/',tipo:'Otro',desc:'Pika Gen + Kangaskhans',monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
+{id:'I0032',fecha:'2026-05-04',cliente:'Andrés Carrasco Hernández',canal:'Instagram',link:'https://www.instagram.com/andres.ignacioc/',tipo:'Otro',monto:14500,envio:'si',empresa:'Starken',ciudad:'Valdivia',costoEnvio:4880,total:19380,estado:'enviado'},
+{id:'I0033',fecha:'2026-05-04',cliente:'Francisco Cassi',canal:'Instagram',link:'https://www.instagram.com/paaancho.16/',tipo:'Pokédex',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
+{id:'I0034',fecha:'2026-05-04',cliente:'Luis Rojas',canal:'Instagram',link:'https://www.instagram.com/luistache/',tipo:'Pokédex',monto:13000,envio:'no',costoEnvio:0,total:13000,estado:'entregado'},
+{id:'I0035',fecha:'2026-05-05',cliente:'Miguel Jopia',canal:'Instagram',link:'https://www.instagram.com/mjopia/',tipo:'Otro',monto:66000,envio:'si',empresa:'Starken',ciudad:'Antofagasta',costoEnvio:6330,total:72330,estado:'enviado'},
+{id:'O0003',fecha:'2026-05-06',cliente:'Herman Hoffmann',canal:'Otro',link:'56950146487',tipo:'Pack 20 Reverse',items:[{nombre:'Pack 20 Reverse',precio:5000,qty:1}],desc:'1 pack reverse + Hit y 1 pack Holografico + Hit',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
+{id:'I0036',fecha:'2026-05-07',cliente:'Ximena Carvallo',canal:'Instagram',link:'https://www.instagram.com/astralkatze/',tipo:'Otro',desc:'Gusanos y delta Dratini',monto:10500,envio:'no',costoEnvio:0,total:10500,estado:'entregado'},
+{id:'I0037',fecha:'2026-05-07',cliente:'Tomás Sanchez',canal:'Instagram',link:'https://www.instagram.com/tomasmadarsan/',tipo:'Otro',desc:'Monitos antiguos chayas',monto:3000,envio:'si',costoEnvio:4750,total:7750,estado:'enviado'},
+{id:'I0038',fecha:'2026-05-08',cliente:'Fernanda Villarroel',canal:'Instagram',link:'https://www.instagram.com/fervillarroelg/',tipo:'Otro',desc:'Lillipups y evos',monto:2000,envio:'no',costoEnvio:0,total:2000,estado:'entregado'},
+{id:'I0039',fecha:'2026-05-08',cliente:'Sebastian Benalcazar',canal:'Instagram',link:'https://www.instagram.com/sebastianx99/',tipo:'Ilustradores',desc:'Sachiko Adachi',monto:14000,envio:'si',empresa:'Starken',ciudad:'Valparaíso',costoEnvio:4990,total:18990,estado:'enviado'},
+{id:'I0040',fecha:'2026-05-11',cliente:'Rafael Antonio',canal:'Instagram',link:'https://www.instagram.com/rgmaderero/',tipo:'Pokédex',desc:'Solo Gyarados: Magesty + Go + 151',monto:12000,envio:'no',costoEnvio:0,total:12000,estado:'entregado'},
+{id:'I0041',fecha:'2026-05-12',cliente:'Luis Rojas',canal:'Instagram',link:'https://www.instagram.com/luistache/',tipo:'Otro',desc:'Cleffa 151, busca cutes',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
+{id:'I0042',fecha:'2026-05-12',cliente:'Claudio Bachmann',canal:'Instagram',link:'https://www.instagram.com/bachmannclaudio/',tipo:'Otro',desc:'151 reverses',monto:24000,envio:'no',costoEnvio:0,total:24000,estado:'entregado'},
+{id:'I0043',fecha:'2026-05-15',cliente:'Cesar Aguilar',canal:'Instagram',link:'https://www.instagram.com/csardvid_/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'si',empresa:'Starken',ciudad:'Coronel',costoEnvio:4990,total:15990,estado:'enviado'},
+{id:'I0044',fecha:'2026-05-15',cliente:'nan',canal:'Instagram',link:'https://www.instagram.com/maizorito_/',tipo:'Pokédex',desc:'Cyndas antiguois',monto:7000,envio:'no',costoEnvio:0,total:7000,estado:'entregado'},
+{id:'O0004',fecha:'2026-05-15',cliente:'Conrado Gómez',canal:'Otro',link:'snes_mon',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],desc:'1 pack 55 + 20 holos',monto:10500,envio:'no',costoEnvio:0,total:10500,estado:'entregado'},
+{id:'I0045',fecha:'2026-05-19',cliente:'Ignacio Velasquez',canal:'Instagram',link:'https://www.instagram.com/oddity_iv/',tipo:'Pokédex',desc:'Muchas',monto:32000,envio:'si',costoEnvio:3590,total:35590,estado:'enviado'},
+{id:'I0046',fecha:'2026-05-19',cliente:'Kevin Ares Ponce',canal:'Instagram',link:'https://www.instagram.com/aris_ponce/',tipo:'Otro',desc:'Rapidash + Noctwol. Por ver retiro.',monto:3000,envio:'no',costoEnvio:0,total:3000,estado:'pendiente'}
+];
+
+const PACKS_FIJOS={'Pack 55':5500,'Pack 55 + HIT':8500,'Pack 20 Holografico':5000,'Pack 20 Holografico + HIT':8000,'Pack 20 Reverse':5000,'Pack 20 Reverse + HIT':8000,'Pack 50 Entrenadores':5000,'10 cartas HIT':24990};
+const STOCK_PACKS=Object.keys(PACKS_FIJOS);
+let carrito=[],filtroV='todas',filtroP='todos',ventaEntregaId=null;
+
+window.onload=()=>{
+  document.getElementById('headerDate').textContent=new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('scriptCode').value=getScript();
+  const cfg=getCfg();
+  if(cfg.url)document.getElementById('cfgUrl').value=cfg.url;
+  if(cfg.tab)document.getElementById('cfgTab').value=cfg.tab;
+  if(!localStorage.getItem('pdg_ventas'))localStorage.setItem('pdg_ventas',JSON.stringify(HISTORICO));
+  if(!localStorage.getItem('pdg_stock')){
+    const s={};STOCK_PACKS.forEach(p=>s[p]=10);
+    HISTORICO.forEach(v=>{if(v.items)v.items.forEach(i=>{if(s[i.nombre]!==undefined)s[i.nombre]=Math.max(0,s[i.nombre]-i.qty);});});
+    localStorage.setItem('pdg_stock',JSON.stringify(s));
+  }
+  renderAll();
+};
+
+function renderAll(){renderDash();renderVentas();renderStock();renderPendientes();renderInteresados();renderResumen();updateBadge();}
+function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]');}
+function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
+function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
+function getCfg(){return JSON.parse(localStorage.getItem('pdg_cfg')||'{}');}
+function setVentas(v){localStorage.setItem('pdg_ventas',JSON.stringify(v));}
+function setStock(s){localStorage.setItem('pdg_stock',JSON.stringify(s));}
+
+function showTab(id,el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(el)el.classList.add('active');
+  renderAll();
+}
+
+function renderDash(){
+  const ventas=getVentas();
+  const hoy=new Date().toISOString().split('T')[0];
+  const now=new Date();
+  const lunes=new Date(now);lunes.setDate(now.getDate()-now.getDay()+1);
+  const lunesFecha=lunes.toISOString().split('T')[0];
+  const primerMes=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  let tH=0,cH=0,tS=0,cS=0,tM=0,cM=0,tT=0,cT=0,ep=0;
+  ventas.forEach(v=>{
+    tT+=v.monto;cT++;
+    if(v.fecha===hoy){tH+=v.monto;cH++;}
+    if(v.fecha>=lunesFecha){tS+=v.monto;cS++;}
+    if(v.fecha>=primerMes){tM+=v.monto;cM++;}
+    if(v.envio==='si'&&v.estado!=='enviado')ep++;
+  });
+  document.getElementById('sHoy').textContent=fmt(tH);document.getElementById('sHoySub').textContent=cH+' venta'+(cH!==1?'s':'');
+  document.getElementById('sSem').textContent=fmt(tS);document.getElementById('sSemSub').textContent=cS+' ventas';
+  document.getElementById('sMes').textContent=fmt(tM);document.getElementById('sMesSub').textContent=cM+' ventas';
+  document.getElementById('sTotal').textContent=fmt(tT);document.getElementById('sTotalSub').textContent=cT+' ventas totales';
+  document.getElementById('sEnvPend').textContent=ep;
+  document.getElementById('sTicket').textContent=cM?fmt(Math.round(tM/cM)):'$0';
+  const bars=document.getElementById('chartBars');bars.innerHTML='';
+  const dias=[];for(let i=6;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);dias.push(d.toISOString().split('T')[0]);}
+  const maxV=Math.max(...dias.map(d=>ventas.filter(v=>v.fecha===d).reduce((a,v)=>a+v.monto,0)),1);
+  dias.forEach(d=>{
+    const sum=ventas.filter(v=>v.fecha===d).reduce((a,v)=>a+v.monto,0);
+    const pct=Math.max((sum/maxV)*100,sum>0?8:2);
+    const isHoy=d===hoy;
+    const lbl=new Date(d+'T12:00:00').toLocaleDateString('es-CL',{weekday:'short'});
+    const col=document.createElement('div');col.className='bar-col';
+    col.innerHTML='<div class="bar '+(isHoy?'today':'other')+'" style="height:'+pct+'%" title="'+fmt(sum)+'"></div><div class="bar-label">'+lbl+'</div>';
+    bars.appendChild(col);
+  });
+  const cnt={};ventas.forEach(v=>{cnt[v.tipo]=(cnt[v.tipo]||0)+1;});
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('topProd').textContent=top?top[0]+' — '+top[1]+' ventas':'—';
+  const pend=ventas.filter(v=>v.estado==='pendiente').slice(0,4);
+  const dd=document.getElementById('dashDesp');
+  dd.innerHTML=pend.length?pend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>'+(v.envio==='si'?'📦':'🏠')+' <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">'+(v.ciudad||'Retiro')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:12px;">Sin despachos pendientes</div>';
+}
+
+function toggleEnvio(){
+  const es=document.getElementById('fEnvio').value==='si';
+  ['gRF','gRH'].forEach(id=>document.getElementById(id).style.display=es?'none':'');
+  ['gEmp','gCiu','gDir','gTel','gCE'].forEach(id=>document.getElementById(id).style.display=es?'':'none');
+}
+
+function agregarItem(){
+  const sel=document.getElementById('fProdSel').value;
+  if(!sel)return toast('Elegí un producto');
+  const [nombre,precioStr]=sel.split('|');
+  let precio=parseInt(precioStr)||0;
+  const qty=parseInt(document.getElementById('fQty').value)||1;
+  if(precio===0){
+    const p=prompt('Precio para "'+nombre+'":');
+    precio=parseInt((p||'').replace(/\D/g,''))||0;
+    if(!precio)return toast('Ingresá el precio');
+  }
+  const ex=carrito.find(c=>c.nombre===nombre);
+  if(ex){ex.qty+=qty;}else{carrito.push({nombre,precio,qty});}
+  renderCarrito();
+}
+
+function renderCarrito(){
+  const el=document.getElementById('carritoItems');
+  if(!carrito.length){el.innerHTML='<div style="color:var(--muted);font-size:12px;font-family:var(--font-mono);padding:6px 0;">Sin productos aún</div>';document.getElementById('carritoTotal').textContent='$0';return;}
+  let total=0;
+  el.innerHTML=carrito.map((c,i)=>{const sub=c.precio*c.qty;total+=sub;return '<div class="ci"><span class="ci-name">'+c.nombre+'</span><span class="ci-qty">x'+c.qty+'</span><span class="ci-price">'+fmt(sub)+'</span><button class="btn-rm" onclick="quitarItem('+i+')">×</button></div>';}).join('');
+  document.getElementById('carritoTotal').textContent=fmt(total);
+}
+function quitarItem(i){carrito.splice(i,1);renderCarrito();}
+
+function generarCodigo(canal){
+  const ventas=getVentas();
+  const prefix=canal==='Instagram'?'I':canal==='Página Facebook'?'F':canal==='Messenger'?'M':'O';
+  const existentes=ventas.filter(v=>v.id.startsWith(prefix)).map(v=>parseInt(v.id.slice(1))||0);
+  return prefix+(Math.max(0,...existentes)+1).toString().padStart(4,'0');
+}
+
+function guardarVenta(){
+  const nombre=document.getElementById('fNombre').value.trim();
+  if(!nombre)return toast('Ingresá el nombre del cliente');
+  if(!carrito.length)return toast('Agregá al menos un producto');
+  const canal=document.getElementById('fCanal').value;
+  if(!canal)return toast('Seleccioná el canal de venta');
+  const envio=document.getElementById('fEnvio').value;
+  const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
+  const costoEnvio=parseInt(document.getElementById('fCE').value)||0;
+  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:carrito.length===1?carrito[0].nombre:carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:document.getElementById('fEmp').value,ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?(costoEnvio>0?'enviado':'pendiente'):'pendiente',createdAt:new Date().toISOString()};
+  const ventas=getVentas();ventas.push(v);setVentas(ventas);
+  const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
+  enviarSheets(v);
+  if(envio==='no'&&v.retiroFecha&&v.retiroHora)programarRec(v);
+  toast('✓ Venta '+v.id+' guardada');limpiarForm();renderAll();
+  showTab('ventas',document.querySelector('[onclick*="showTab(\'ventas\'"]'));
+}
+
+function limpiarForm(){
+  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fCE','fRF','fRH'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fCanal').value='';document.getElementById('fEnvio').value='no';
+  document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
+  toggleEnvio();carrito=[];renderCarrito();
+}
+
+async function parsearConv(){
+  const texto=document.getElementById('parseInput').value.trim();
+  if(!texto)return toast('Pegá una conversación primero');
+  const btn=event.target;btn.innerHTML='<span class="spinner"></span>Procesando...';btn.disabled=true;
+  const tiposStr=Object.keys(PACKS_FIJOS).concat(['Pack Meta','Ilustradores','Hits','Pokédex','Entrenadores','Cajas vacías','Otro']).join(', ');
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:'Extraé datos de venta de cartas Pokémon de esta conversación. Tipos de producto disponibles: '+tiposStr+'. Conversación: +texto+ Respondé SOLO con JSON sin markdown: {"nombre":"","canal":"Instagram|Página Facebook|Messenger|WhatsApp Business|Otro","link":"","envio":"si|no","ciudad":"","telefono":"","direccion":"","retiroFecha":"YYYY-MM-DD","retiroHora":"HH:MM","desc":"","items":[{"nombre":"tipo de producto","precio":0,"qty":1}]}'}]})});
+    const data=await resp.json();
+    const raw=data.content.map(b=>b.text||'').join('');
+    const p=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(p.nombre)document.getElementById('fNombre').value=p.nombre;
+    if(p.canal)document.getElementById('fCanal').value=p.canal;
+    if(p.link)document.getElementById('fLink').value=p.link;
+    if(p.envio)document.getElementById('fEnvio').value=p.envio;
+    toggleEnvio();
+    if(p.ciudad)document.getElementById('fCiu').value=p.ciudad;
+    if(p.telefono)document.getElementById('fTel').value=p.telefono;
+    if(p.direccion)document.getElementById('fDir').value=p.direccion;
+    if(p.retiroFecha)document.getElementById('fRF').value=p.retiroFecha;
+    if(p.retiroHora)document.getElementById('fRH').value=p.retiroHora;
+    if(p.desc)document.getElementById('fDesc').value=p.desc;
+    if(p.items&&p.items.length){carrito=p.items.map(i=>({nombre:i.nombre,precio:i.precio||PACKS_FIJOS[i.nombre]||0,qty:i.qty||1}));renderCarrito();}
+    document.getElementById('parseInput').value='';
+    toast('✓ Datos extraídos — revisá y confirmá');
+  }catch(e){toast('Error al procesar');console.error(e);}
+  btn.innerHTML='Extraer automáticamente';btn.disabled=false;
+}
+
+function cBadge(canal){
+  const m={'Instagram':'b-ig','Página Facebook':'b-fb','Messenger':'b-fb','WhatsApp Business':'b-wa'};
+  return '<span class="badge '+(m[canal]||'b-otro')+'">'+canal+'</span>';
+}
+
+function renderVentas(){
+  const ventas=getVentas();const el=document.getElementById('ventasList');
+  let lista=[...ventas].reverse();
+  if(filtroV==='pendientes')lista=lista.filter(v=>v.estado==='pendiente');
+  if(filtroV==='envio')lista=lista.filter(v=>v.envio==='si');
+  if(filtroV==='retiro')lista=lista.filter(v=>v.envio==='no');
+  if(filtroV==='enviado')lista=lista.filter(v=>v.estado==='enviado');
+  if(!lista.length){el.innerHTML='<div class="empty">SIN VENTAS</div>';return;}
+  el.innerHTML=lista.map(v=>{
+    const eb=v.estado==='enviado'?'<span class="badge b-enviado">&#10003; Enviado</span>':v.estado==='entregado'?'<span class="badge b-entregado">&#10003; Entregado</span>':'<span class="badge b-pendiente">Pendiente</span>';
+    const ciudad=v.ciudad||'Envío';
+    const retiroF=v.retiroFecha?' '+fmtF(v.retiroFecha):'';
+    const tb=v.envio==='si'?`<span class="badge b-envio">&#128230; ${ciudad}</span>`:`<span class="badge b-retiro">&#127968; Retiro${retiroF}</span>`;
+    const linkHref=v.link?(v.link.startsWith('http')?v.link:'https://instagram.com/'+v.link.replace('@','')):'';
+    const linkLabel=v.link?v.link.replace('https://www.instagram.com/','@').replace('https://www.facebook.com/','fb:'):'';
+    const lh=v.link?`<a href="${linkHref}" target="_blank" style="font-family:var(--font-mono);font-size:10px;color:var(--accent);">${linkLabel}</a>`:'';
+    const ceRow=v.envio==='si'&&v.estado!=='enviado'?`<div class="ce-row"><input type="number" placeholder="Costo envio Starken" id="ce_${v.id}" style="width:130px;"><button class="btn btn-secondary btn-sm" onclick="actCostoEnvio('${v.id}')">Actualizar y marcar enviado</button></div>`:'';
+    const items=v.items?v.items.map(i=>i.qty+'x '+i.nombre).join(', '):v.tipo;
+    const costoSub=v.costoEnvio?`<div class="vts">${fmt(v.monto)} + ${fmt(v.costoEnvio)} env.</div>`:'';
+    const descHtml=v.desc?`<div class="vn">${v.desc}</div>`:'';
+    const entregaBtn=v.estado==='pendiente'&&v.envio==='no'?`<div class="btn-row" style="margin-top:8px;"><button class="btn btn-secondary btn-sm" onclick="abrirModal('${v.id}')">Marcar entregado</button></div>`:'';
+    return `<div class="venta-row"><div class="vh"><div><div class="vc">${v.cliente}</div><div class="vco">${v.id} &middot; ${fmtF(v.fecha)} ${lh}</div></div><div><div class="vt">${fmt(v.total)}</div>${costoSub}</div></div><div class="vm">${cBadge(v.canal)}${tb}${eb}</div><div class="vd">${items}</div>${descHtml}${ceRow}${entregaBtn}</div>`;
+  }).join('');
+}
+
+function filtrarV(tipo,btn){filtroV=tipo;document.querySelectorAll('#tab-ventas .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderVentas();}
+
+function actCostoEnvio(id){
+  const input=document.getElementById('ce_'+id);
+  const costo=parseInt(input?.value)||0;
+  if(!costo)return toast('Ingresá el costo del envío');
+  const ventas=getVentas();const v=ventas.find(v=>v.id===id);
+  if(v){v.costoEnvio=costo;v.total=v.monto+costo;v.estado='enviado';}
+  setVentas(ventas);toast('✓ Envío actualizado');renderAll();
+}
+
+function renderStock(){
+  const stock=getStock();const el=document.getElementById('stockGrid');
+  el.innerHTML=STOCK_PACKS.map(p=>{
+    const qty=stock[p]??10;const pct=Math.min((qty/10)*100,100);
+    const cls=qty<=2?'low':qty<=5?'mid':'ok';
+    const clr=qty<=2?'background:var(--red);':qty<=5?'background:var(--accent2);':'';
+    const pid=p.replace(/[ +]/g,'_');
+    return `<div class="sc"><div class="sc-name">${p}</div><div class="sc-price">${fmt(PACKS_FIJOS[p])}</div><div class="sc-bar"><div class="sc-bf" style="width:${pct}%;${clr}"></div></div><div class="sc-qty ${cls}">${qty}</div><div class="sc-edit"><input type="number" min="0" value="${qty}" id="sc_${pid}"><button class="btn btn-secondary btn-sm" onclick="actStock('${p}')">Guardar</button></div></div>`;
+  }).join('');
+}
+
+function actStock(pack){
+  const val=parseInt(document.getElementById('sc_'+pack.replace(/[ +]/g,'_')).value);
+  if(isNaN(val)||val<0)return toast('Valor inválido');
+  const s=getStock();s[pack]=val;setStock(s);toast('Stock actualizado');renderStock();
+}
+
+function updateBadge(){
+  const cnt=getVentas().filter(v=>v.estado==='pendiente').length;
+  const btn=document.getElementById('tab-btn-pendientes');
+  if(btn){const ex=btn.querySelector('.badge-count');if(ex)ex.remove();if(cnt>0){const b=document.createElement('span');b.className='badge-count';b.textContent=cnt;btn.appendChild(b);}}
+}
+
+function renderPendientes(){
+  const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente');
+  if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si');
+  if(filtroP==='retiro')pend=pend.filter(v=>v.envio==='no');
+  const el=document.getElementById('pendientesList');
+  if(!pend.length){el.innerHTML='<div class="empty">SIN PENDIENTES ✓</div>';return;}
+  el.innerHTML=pend.map(v=>{
+    const fRef=v.retiroFecha||proxDespacho();
+    const d=new Date(fRef+'T12:00:00');
+    const items=v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo;
+    const retH=v.retiroHora?' '+v.retiroHora:'';
+    const entrega=v.envio==='si'?(v.ciudad||'Sin ciudad'):'Retiro'+retH;
+    const descP=v.desc?`<p style="color:var(--accent2);margin-top:3px;">${v.desc}</p>`:'';
+    const accion=v.envio==='si'?`<input type="number" placeholder="Costo envio" id="cep_${v.id}" style="width:110px;padding:6px 8px;font-size:11px;margin-bottom:4px;"><button class="btn btn-secondary btn-sm" onclick="actCostoEnvio('${v.id}')">Marcar enviado</button>`:`<button class="btn btn-secondary btn-sm" onclick="abrirModal('${v.id}')">Entregado</button>`;
+    const icon=v.envio==='si'?'&#128230;':'&#127968;';
+    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+  }).join('');
+}
+
+function filtrarP(tipo,btn){filtroP=tipo;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderPendientes();}
+function proxDespacho(){const d=new Date();const day=d.getDay();let dias=day<=3?3-day:day<=5?5-day:3+(7-day);if(dias===0&&d.getHours()>=18)dias=day===3?2:7;const nd=new Date(d);nd.setDate(d.getDate()+dias);return nd.toISOString().split('T')[0];}
+
+function abrirModal(id){ventaEntregaId=id;const v=getVentas().find(v=>v.id===id);document.getElementById('modalInfo').innerHTML='<strong>'+v.cliente+'</strong> — '+(v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo);document.getElementById('modalEntrega').classList.add('open');}
+function confirmarEntrega(){const ventas=getVentas();const v=ventas.find(v=>v.id===ventaEntregaId);if(v)v.estado='entregado';setVentas(ventas);cerrarModal();toast('✓ Marcado como entregado');renderAll();}
+function cerrarModal(){document.getElementById('modalEntrega').classList.remove('open');}
+
+function agregarInteresado(){
+  const nombre=document.getElementById('iNom').value.trim();const pedido=document.getElementById('iPed').value.trim();
+  if(!nombre||!pedido)return toast('Completá nombre y pedido');
+  const list=getInteresados();list.push({id:Date.now(),nombre,link:document.getElementById('iLink').value,pedido});
+  localStorage.setItem('pdg_interesados',JSON.stringify(list));
+  document.getElementById('iNom').value='';document.getElementById('iLink').value='';document.getElementById('iPed').value='';
+  toast('✓ Interesado guardado');renderInteresados();
+}
+
+function renderInteresados(){
+  const list=getInteresados();const el=document.getElementById('interesadosList');
+  if(!list.length){el.innerHTML='<div class="empty">SIN INTERESADOS</div>';return;}
+  el.innerHTML=list.map(i=>'<div class="ii"><div class="ii-av">'+i.nombre[0].toUpperCase()+'</div><div class="ii-body"><div class="ii-nombre">'+i.nombre+'</div><div class="ii-pedido">'+i.pedido+'</div>'+(i.link?'<a class="ii-link" href="'+(i.link.startsWith('http')?i.link:'https://instagram.com/'+i.link.replace('@',''))+'" target="_blank">'+i.link+'</a>':'')+'</div><button class="btn btn-secondary btn-sm" onclick="borrarInt('+i.id+')">✕</button></div>').join('');
+}
+
+function borrarInt(id){const list=getInteresados().filter(i=>i.id!==id);localStorage.setItem('pdg_interesados',JSON.stringify(list));renderInteresados();}
+
+function renderResumen(){
+  const ventas=getVentas();const semanas={};
+  ventas.forEach(v=>{const d=new Date(v.fecha+'T12:00:00');const lunes=new Date(d);lunes.setDate(d.getDate()-d.getDay()+1);const key=lunes.toISOString().split('T')[0];if(!semanas[key])semanas[key]={ventas:[],lunes};semanas[key].ventas.push(v);});
+  const keys=Object.keys(semanas).sort().reverse().slice(0,8);
+  const el=document.getElementById('resumenContenido');
+  if(!keys.length){el.innerHTML='<div class="empty">SIN DATOS</div>';return;}
+  const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  el.innerHTML=keys.map(key=>{
+    const s=semanas[key];const viernes=new Date(s.lunes);viernes.setDate(s.lunes.getDate()+6);
+    const titulo=s.lunes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})+' al '+viernes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});
+    let tS=0,tE=0,nV=0;
+    const porDia=dias.map((_,i)=>{
+      const df=new Date(s.lunes);df.setDate(s.lunes.getDate()+i);const dk=df.toISOString().split('T')[0];
+      const dv=s.ventas.filter(v=>v.fecha===dk);const tv=dv.reduce((a,v)=>a+v.monto,0);const te=dv.reduce((a,v)=>a+(v.costoEnvio||0),0);
+      tS+=tv;tE+=te;nV+=dv.length;
+      return {dia:dias[i],n:dv.length,tv,te};
+    });
+    return '<div class="card" style="margin-bottom:14px;"><div class="card-title">Semana del '+titulo+'</div><div style="overflow-x:auto;"><table class="sem-table"><thead><tr><th>Métrica</th>'+dias.map((d,i)=>'<th>'+d+'<br><span style="font-weight:normal;font-size:8px;">'+(new Date(s.lunes.getTime()+i*86400000)).getDate()+'/'+(new Date(s.lunes.getTime()+i*86400000).getMonth()+1).toString().padStart(2,'0')+'</span></th>').join('')+'<th>TOTAL</th><th>TICKET</th></tr></thead><tbody><tr><td>Ventas ($)</td>'+porDia.map(d=>'<td class="'+(d.tv?'va':'vm2')+'">'+(d.tv?fmt(d.tv):'—')+'</td>').join('')+'<td class="va">'+fmt(tS)+'</td><td class="vm2">'+(nV?fmt(Math.round(tS/nV)):'—')+'</td></tr><tr><td>N° ventas</td>'+porDia.map(d=>'<td class="vm2">'+(d.n||'—')+'</td>').join('')+'<td class="vm2">'+nV+'</td><td></td></tr><tr><td>Envíos ($)</td>'+porDia.map(d=>'<td class="vm2">'+(d.te?fmt(d.te):'—')+'</td>').join('')+'<td class="vm2">'+(tE?fmt(tE):'—')+'</td><td></td></tr></tbody></table></div></div>';
+  }).join('');
+}
+
+async function enviarSheets(v){
+  const cfg=getCfg();if(!cfg.url)return;
+  const rows=(v.items||[{nombre:v.tipo,qty:1,precio:v.monto}]).map((item,idx)=>({codigo:v.id,fecha:v.fecha,cliente:v.cliente,canal:v.canal,link:v.link,tipo:item.nombre,cantidad:item.qty,descripcion:idx===0?v.desc:'',monto:item.precio*(item.qty||1),total:idx===0?v.total:'',envio:v.envio==='si'?'Sí':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',costoEnvio:idx===0?v.costoEnvio:'',estado:v.estado}));
+  try{await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
+}
+
+function guardarCfg(){localStorage.setItem('pdg_cfg',JSON.stringify({url:document.getElementById('cfgUrl').value.trim(),tab:document.getElementById('cfgTab').value.trim()}));toast('✓ Configuración guardada');}
+async function testSheets(){const url=document.getElementById('cfgUrl').value.trim();if(!url)return toast('Ingresá la URL primero');try{await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({test:true})});toast('✓ Conexión enviada');}catch(e){toast('Error de conexión');}}
+function copiarScript(){navigator.clipboard.writeText(document.getElementById('scriptCode').value);toast('✓ Código copiado');}
+
+function programarRec(v){
+  if(!('Notification'in window))return;
+  Notification.requestPermission().then(p=>{if(p!=='granted')return;const dt=new Date(v.retiroFecha+'T'+v.retiroHora+':00');const diff=dt.getTime()-Date.now()-3600000;if(diff>0&&diff<86400000)setTimeout(()=>{new Notification('⏰ Retiro en 1h — '+v.cliente,{body:v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo});},diff);});
+}
+
+function getScript(){
+  return `function doPost(e){
+  try{
+    var d=JSON.parse(e.postData.contents);
+    if(d.test) return ContentService.createTextOutput('ok');
+    var ss=SpreadsheetApp.getActiveSpreadsheet();
+    var sh=ss.getSheetByName(d.tab)||ss.insertSheet(d.tab);
+    if(sh.getLastRow()===0){
+      sh.appendRow(['Codigo','Fecha','Cliente','Canal','Link','Tipo','Cantidad','Descripcion','Monto','Total','Envio','Empresa','Ciudad','Costo Envio','Estado']);
+      sh.getRange(1,1,1,15).setFontWeight('bold').setBackground('#c8f135');
+    }
+    d.rows.forEach(function(r){
+      sh.appendRow([r.codigo,r.fecha,r.cliente,r.canal,r.link,r.tipo,r.cantidad,r.descripcion,r.monto,r.total,r.envio,r.empresa,r.ciudad,r.costoEnvio,r.estado]);
+    });
+    return ContentService.createTextOutput('ok');
+  }catch(err){return ContentService.createTextOutput('error:'+err);}
+}`;}
+function fmt(n){return '$'+Math.round(n||0).toLocaleString('es-CL');}
+function fmtF(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('es-CL',{day:'numeric',month:'short'});}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
+function resetTodo(){if(!confirm('¿Borrar todos los datos locales?'))return;['pdg_ventas','pdg_stock','pdg_interesados','pdg_cfg'].forEach(k=>localStorage.removeItem(k));carrito=[];renderAll();toast('Datos borrados');}
+</script>
+</body>
+</html>
