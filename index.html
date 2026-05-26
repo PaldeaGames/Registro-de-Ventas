@@ -861,16 +861,16 @@ function actCostoEnvio(id){
   if(v){v.costoEnvio=costo;v.total=v.monto+costo;v.estado='enviado';}
   setVentas(ventas);
   // Send update to Google Sheets
-  actualizarSheets(id, costo, v.monto+costo);
+  actualizarSheets(id, costo, v.monto+costo, 'enviado');
   toast('✓ Enviado — $'+costo.toLocaleString('es-CL')+' costo envío');
   renderAll();
 }
 
-async function actualizarSheets(id, costoEnvio, total){
+async function actualizarSheets(id, costoEnvio, total, estado){
   const cfg=getCfg();if(!cfg.url)return;
   try{
-    await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado,tab:cfg.tab||'Registro de Ventas'})});
+    const body=JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado:estado||'enviado',tab:cfg.tab||'Registro de Ventas'});
+    await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body});
   }catch(e){console.error(e);}
 }
 
