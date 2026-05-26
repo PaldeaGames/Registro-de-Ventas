@@ -594,11 +594,10 @@ function parsearConv(){
 
 function parsearTextoLocal(texto){
   const r={nombre:'',canal:'Instagram',link:'',envio:'no',ciudad:'',telefono:'',direccion:'',retiroFecha:'',retiroHora:'',desc:'',items:[]};
-
   const lineas=texto.split('\n').map(l=>l.trim()).filter(Boolean);
 
-  // ====== FORMATO TABLA (copiado de Google Sheet) ======
-  // Columnas: ID Pedido | Fecha | Cliente | Instagram | Producto | Cantidad | Precio Unit. | Subtotal | Total Pedido | Entrega | Día | Hora
+  // ====== FORMATO TABLA (Google Sheet) ======
+  // Cols por TAB: [0]ID [1]Fecha [2]Cliente [3]@Instagram [4]Producto [5]Cantidad [6]PrecioUnit [7]Subtotal [8]TotalPedido [9]Entrega [10]Dia [11]Hora
   const esTabla=lineas.some(l=>/^PPG-\d+/i.test(l));
 
   if(esTabla){
@@ -606,42 +605,54 @@ function parsearTextoLocal(texto){
     if(!filas.length) return r;
 
     filas.forEach((fila,idx)=>{
-      // Split por tab
-      const cols=fila.split('\t').map(c=>c.trim());
-      // cols[0]=ID, [1]=Fecha, [2]=Cliente, [3]=Instagram, [4]=Producto, [5]=Cantidad, [6]=PrecioUnit, [7]=Subtotal, [8]=TotalPedido, [9]=Entrega, [10]=Dia, [11]=Hora
+      const cols=fila.split('\t');
+      // Ensure we have enough columns
+      while(cols.length<12) cols.push('');
 
       if(idx===0){
-        r.nombre=cols[2]||'';
-        r.link=cols[3]||'';
-        // Entrega
-        const entrega=(cols[9]||'').toLowerCase();
-        if(entrega.includes('env')) r.envio='si';
-        else r.envio='no';
-        // Día de retiro/envío
-        const dia=(cols[10]||'').toLowerCase();
-        const dias={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
-        if(dias[dia]!==undefined){
+        // col[2] = Cliente
+        r.nombre=cols[2].trim();
+        // col[3] = @Instagram -> canal + link
+        const linkRaw=cols[3].trim();
+        r.link=linkRaw;
+        // col[3] is always the Instagram/contact column in this Sheet format
+        // Detect canal from link content
+        if(linkRaw.includes('facebook.com/')) r.canal='Página Facebook';
+        else if(linkRaw.toLowerCase().includes('messenger')) r.canal='Messenger';
+        else if(linkRaw.includes('whatsapp')) r.canal='WhatsApp Business';
+        else r.canal='Instagram'; // Default: @usuario = Instagram
+
+        // col[9] = Entrega (Retiro/Envío)
+        const entrega=cols[9].trim().toLowerCase();
+        r.envio=entrega.includes('env')?'si':'no';
+
+        // col[10] = Día de la semana
+        const diaMap={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
+        const diaRaw=cols[10].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+        const diaNum=diaMap[cols[10].trim().toLowerCase()]??diaMap[diaRaw];
+        if(diaNum!==undefined){
           const hoy=new Date();
-          const diff=(dias[dia]-hoy.getDay()+7)%7||7;
+          const diff=(diaNum-hoy.getDay()+7)%7||7;
           const fecha=new Date(hoy);fecha.setDate(hoy.getDate()+diff);
           r.retiroFecha=fecha.toISOString().split('T')[0];
         }
-        // Hora
-        if(cols[11]) r.retiroHora=cols[11].substring(0,5);
+
+        // col[11] = Hora exacta (ej: "18:00")
+        const horaRaw=cols[11].trim();
+        if(/^\d{1,2}:\d{2}$/.test(horaRaw)) r.retiroHora=horaRaw.padStart(5,'0');
       }
 
-      // Producto
-      const producto=cols[4]||'';
-      const cantidad=parseInt(cols[5])||1;
-      const precioUnit=parseInt((cols[6]||'0').replace(/[.$\s]/g,''))||0;
+      // col[4] = Producto, col[5] = Cantidad, col[6] = Precio unitario
+      const productoRaw=cols[4].trim();
+      const cantidadRaw=parseInt(cols[5].trim())||1;  // ALWAYS from col[5], never from product name
+      const precioRaw=parseInt(cols[6].trim().replace(/[.$\s,]/g,''))||0;
 
-      if(producto){
-        // Normalizar nombre del producto
-        const nombreNorm=normalizarProducto(producto);
-        const precioFinal=precioUnit||PACKS_FIJOS[nombreNorm]||0;
+      if(productoRaw){
+        const nombreNorm=normalizarProducto(productoRaw);
+        const precioFinal=precioRaw||PACKS_FIJOS[nombreNorm]||0;
         const existe=r.items.find(i=>i.nombre===nombreNorm);
-        if(existe) existe.qty+=cantidad;
-        else r.items.push({nombre:nombreNorm,precio:precioFinal,qty:cantidad});
+        if(existe) existe.qty+=cantidadRaw;
+        else r.items.push({nombre:nombreNorm,precio:precioFinal,qty:cantidadRaw});
       }
     });
     return r;
@@ -650,43 +661,36 @@ function parsearTextoLocal(texto){
   // ====== FORMATO CONVERSACION / TEXTO LIBRE ======
   const txt=texto.toLowerCase();
 
-  // Canal
   if(/instagram/i.test(txt)) r.canal='Instagram';
   else if(/messenger/i.test(txt)) r.canal='Messenger';
   else if(/facebook/i.test(txt)) r.canal='Página Facebook';
   else if(/whatsapp/i.test(txt)) r.canal='WhatsApp Business';
 
-  // Link
   const linkMatch=texto.match(/https?:\/\/(?:www\.)?(?:instagram|facebook)\.com\/[\w.]+\/?|@[\w.]+/i);
   if(linkMatch) r.link=linkMatch[0];
 
-  // Nombre
-  const nombreMatch=texto.match(/(?:cliente|nombre|comprador)[:]\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/i);
+  const nombreMatch=texto.match(/(?:cliente|nombre|comprador)[:\s]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/i);
   if(nombreMatch) r.nombre=nombreMatch[1];
 
-  // Teléfono
   const telMatch=texto.match(/(?:\+?56\s*)?9\s*\d{4}\s*\d{4}/);
   if(telMatch) r.telefono=telMatch[0].replace(/\s/g,'');
 
-  // Envío
   if(/env[íi]o|despacho|starken|encomienda/i.test(txt)) r.envio='si';
   else if(/retiro|presencial|pasa a buscar/i.test(txt)) r.envio='no';
 
-  // Ciudad
   const ciudades=['santiago','valparaíso','viña del mar','concepción','antofagasta','temuco','iquique','rancagua','talca','arica','puerto montt','coquimbo','la serena','calama','osorno','valdivia','punta arenas','copiapó','talcahuano','coronel','quilicura','maipú','la florida','san miguel','los andes'];
   for(const c of ciudades){
     if(txt.includes(c)){r.ciudad=c.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');break;}
   }
 
-  // Fecha y hora retiro
   const fechaMatch=texto.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
   if(fechaMatch){
     const d=fechaMatch[1].padStart(2,'0'),m=fechaMatch[2].padStart(2,'0');
     const y=fechaMatch[3]?(fechaMatch[3].length===2?'20'+fechaMatch[3]:fechaMatch[3]):new Date().getFullYear();
     r.retiroFecha=y+'-'+m+'-'+d;
   }
-  const dias={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
-  for(const[dia,num] of Object.entries(dias)){
+  const diaMap2={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
+  for(const[dia,num] of Object.entries(diaMap2)){
     if(txt.includes(dia)&&!r.retiroFecha){
       const hoy=new Date(),diff=(num-hoy.getDay()+7)%7||7;
       const f=new Date(hoy);f.setDate(hoy.getDate()+diff);
@@ -696,38 +700,34 @@ function parsearTextoLocal(texto){
   const horaMatch=texto.match(/(\d{1,2}):(\d{2})\s*(?:hrs?|horas?|pm|am)?/i);
   if(horaMatch) r.retiroHora=horaMatch[1].padStart(2,'0')+':'+horaMatch[2];
 
-  // Productos
   const productosMap=[
-    {regex:/pack\s*55\s*\+\s*hit/i,nombre:'Pack 55 + HIT'},
-    {regex:/pack\s*20\s*holo[a-z]*\s*\+\s*hit/i,nombre:'Pack 20 Holografico + HIT'},
-    {regex:/pack\s*20\s*(?:reverse|brillante)\s*\+\s*hit/i,nombre:'Pack 20 Reverse + HIT'},
-    {regex:/pack\s*20\s*holo/i,nombre:'Pack 20 Holografico'},
-    {regex:/pack\s*20\s*(?:reverse|brillante)/i,nombre:'Pack 20 Reverse'},
-    {regex:/pack\s*50\s*entrenador/i,nombre:'Pack 50 Entrenadores'},
-    {regex:/10\s*cartas?\s*hit/i,nombre:'10 cartas HIT'},
-    {regex:/pack\s*55/i,nombre:'Pack 55'},
-    {regex:/pack\s*meta/i,nombre:'Pack Meta'},
-    {regex:/ilustrador/i,nombre:'Ilustradores'},
-    {regex:/pok[eé]dex/i,nombre:'Pokédex'},
-    {regex:/entrenador/i,nombre:'Entrenadores'},
-    {regex:/caja[s]?\s*vac[ií]/i,nombre:'Cajas vacías'},
+    {r:/pack\s*55\s*\+\s*hit/i,n:'Pack 55 + HIT'},
+    {r:/pack\s*20\s*holo[a-z]*\s*\+\s*hit/i,n:'Pack 20 Holografico + HIT'},
+    {r:/pack\s*20\s*(?:reverse|brillante)\s*\+\s*hit/i,n:'Pack 20 Reverse + HIT'},
+    {r:/pack\s*20\s*holo/i,n:'Pack 20 Holografico'},
+    {r:/pack\s*20\s*(?:reverse|brillante)/i,n:'Pack 20 Reverse'},
+    {r:/pack\s*50\s*entrenador/i,n:'Pack 50 Entrenadores'},
+    {r:/10\s*cartas?\s*hit/i,n:'10 cartas HIT'},
+    {r:/pack\s*55/i,n:'Pack 55'},
+    {r:/pack\s*meta/i,n:'Pack Meta'},
+    {r:/ilustrador/i,n:'Ilustradores'},
+    {r:/pok[eé]dex/i,n:'Pokédex'},
+    {r:/entrenador/i,n:'Entrenadores'},
+    {r:/caja[s]?\s*vac[ií]/i,n:'Cajas vacías'},
   ];
   for(const p of productosMap){
-    if(p.regex.test(txt)&&!r.items.find(i=>i.nombre===p.nombre)){
-      const idx2=txt.search(p.regex);
-      const ctx=txt.substring(Math.max(0,idx2-15),idx2+20);
-      const qm=ctx.match(/(\d+)\s*x|x\s*(\d+)|(\d+)\s*pack/i);
-      const qty=qm?(parseInt(qm[1]||qm[2]||qm[3])||1):1;
-      r.items.push({nombre:p.nombre,precio:PACKS_FIJOS[p.nombre]||0,qty});
+    if(p.r.test(txt)&&!r.items.find(i=>i.nombre===p.n)){
+      r.items.push({nombre:p.n,precio:PACKS_FIJOS[p.n]||0,qty:1});
     }
   }
   if(!r.items.length){
-    const montoMatch=texto.match(/\$\s*(\d{1,3}(?:[.,]\d{3})*)/);
-    if(montoMatch) r.items.push({nombre:'Otro',precio:parseInt(montoMatch[1].replace(/[.,]/g,'')),qty:1});
+    const mm=texto.match(/\$\s*(\d{1,3}(?:[.,]\d{3})*)/);
+    if(mm) r.items.push({nombre:'Otro',precio:parseInt(mm[1].replace(/[.,]/g,'')),qty:1});
     else r.desc=texto.substring(0,300);
   }
   return r;
 }
+
 
 function normalizarProducto(nombre){
   const n=nombre.toLowerCase().trim();
