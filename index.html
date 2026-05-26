@@ -593,148 +593,161 @@ function parsearConv(){
 }
 
 function parsearTextoLocal(texto){
-  const r={nombre:'',canal:'',link:'',envio:'no',ciudad:'',telefono:'',direccion:'',retiroFecha:'',retiroHora:'',desc:'',items:[]};
-  const lineas=texto.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>l.trim()).filter(Boolean);
-  const txt=texto.toLowerCase();
+  const r={nombre:'',canal:'Instagram',link:'',envio:'no',ciudad:'',telefono:'',direccion:'',retiroFecha:'',retiroHora:'',desc:'',items:[]};
 
-  // ====== DETECTAR SI ES FORMATO TABLA (Sheet/Excel) ======
-  // Columnas: Codigo | Fecha | Cliente | Canal | Link | Tipo | Cantidad | Desc | Monto | Total | Envio | Empresa | Ciudad | CostoEnvio | Estado
-  const esTabla=lineas.some(l=>/^(PPG|I|F|M|O)\d{4}/i.test(l.trim()));
+  const lineas=texto.split('\n').map(l=>l.trim()).filter(Boolean);
+
+  // ====== FORMATO TABLA (copiado de Google Sheet) ======
+  // Columnas: ID Pedido | Fecha | Cliente | Instagram | Producto | Cantidad | Precio Unit. | Subtotal | Total Pedido | Entrega | Día | Hora
+  const esTabla=lineas.some(l=>/^PPG-\d+/i.test(l));
+
   if(esTabla){
-    // Tomar primera fila con datos
-    const fila=lineas.find(l=>/^(PPG|I|F|M|O)\d{4}/i.test(l.trim()))||lineas[0];
-    // Split por tabs o múltiples espacios
-    const cols=fila.split(/	|  +/).map(c=>c.trim()).filter(Boolean);
-    // cols[0]=codigo, [1]=fecha, [2]=cliente, [3]=canal, [4]=link, [5]=tipo, [6]=cantidad, [7]=desc, [8]=monto, [9]=total, [10]=envio, [11]=empresa, [12]=ciudad
-    if(cols.length>=3) r.nombre=cols[2]||'';
-    if(cols.length>=4) r.canal=normalizarCanal(cols[3]);
-    if(cols.length>=5) r.link=cols[4]||'';
-    if(cols.length>=6){
-      const tipo=cols[5]||'';
-      const qty=parseInt(cols[6])||1;
-      const monto=parseInt((cols[8]||'0').replace(/\D/g,''))||0;
-      if(tipo) r.items.push({nombre:tipo,precio:monto/qty,qty});
-    }
-    if(cols.length>=11) r.envio=cols[10]&&cols[10].toLowerCase().startsWith('s')?'si':'no';
-    if(cols.length>=13&&cols[12]) r.ciudad=cols[12];
-    // Si hay múltiples filas del mismo cliente, agregar todos los items
-    const clienteNombre=r.nombre.toLowerCase();
-    lineas.forEach(l=>{
-      if(l===lineas.find(x=>/^(PPG|I|F|M|O)\d{4}/i.test(x.trim()))) return;
-      if(/^(PPG|I|F|M|O)\d{4}/i.test(l)){
-        const c2=l.split(/	|  +/).map(x=>x.trim()).filter(Boolean);
-        if(c2[2]&&c2[2].toLowerCase()===clienteNombre&&c2[5]){
-          const qty2=parseInt(c2[6])||1;
-          const monto2=parseInt((c2[8]||'0').replace(/\D/g,''))||0;
-          const existe=r.items.find(i=>i.nombre===c2[5]);
-          if(existe) existe.qty+=qty2;
-          else r.items.push({nombre:c2[5],precio:monto2/qty2,qty:qty2});
+    const filas=lineas.filter(l=>/^PPG-\d+/i.test(l));
+    if(!filas.length) return r;
+
+    filas.forEach((fila,idx)=>{
+      // Split por tab
+      const cols=fila.split('\t').map(c=>c.trim());
+      // cols[0]=ID, [1]=Fecha, [2]=Cliente, [3]=Instagram, [4]=Producto, [5]=Cantidad, [6]=PrecioUnit, [7]=Subtotal, [8]=TotalPedido, [9]=Entrega, [10]=Dia, [11]=Hora
+
+      if(idx===0){
+        r.nombre=cols[2]||'';
+        r.link=cols[3]||'';
+        // Entrega
+        const entrega=(cols[9]||'').toLowerCase();
+        if(entrega.includes('env')) r.envio='si';
+        else r.envio='no';
+        // Día de retiro/envío
+        const dia=(cols[10]||'').toLowerCase();
+        const dias={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
+        if(dias[dia]!==undefined){
+          const hoy=new Date();
+          const diff=(dias[dia]-hoy.getDay()+7)%7||7;
+          const fecha=new Date(hoy);fecha.setDate(hoy.getDate()+diff);
+          r.retiroFecha=fecha.toISOString().split('T')[0];
         }
+        // Hora
+        if(cols[11]) r.retiroHora=cols[11].substring(0,5);
+      }
+
+      // Producto
+      const producto=cols[4]||'';
+      const cantidad=parseInt(cols[5])||1;
+      const precioUnit=parseInt((cols[6]||'0').replace(/[.$\s]/g,''))||0;
+
+      if(producto){
+        // Normalizar nombre del producto
+        const nombreNorm=normalizarProducto(producto);
+        const precioFinal=precioUnit||PACKS_FIJOS[nombreNorm]||0;
+        const existe=r.items.find(i=>i.nombre===nombreNorm);
+        if(existe) existe.qty+=cantidad;
+        else r.items.push({nombre:nombreNorm,precio:precioFinal,qty:cantidad});
       }
     });
     return r;
   }
 
   // ====== FORMATO CONVERSACION / TEXTO LIBRE ======
+  const txt=texto.toLowerCase();
 
   // Canal
   if(/instagram/i.test(txt)) r.canal='Instagram';
-  else if(/messenger|facebook/i.test(txt)) r.canal='Página Facebook';
+  else if(/messenger/i.test(txt)) r.canal='Messenger';
+  else if(/facebook/i.test(txt)) r.canal='Página Facebook';
   else if(/whatsapp/i.test(txt)) r.canal='WhatsApp Business';
 
-  // Link @usuario o URL
-  const linkMatch=texto.match(/https?:\/\/(?:www\.)?instagram\.com\/[\w.]+\/?|https?:\/\/(?:www\.)?facebook\.com\/[\w.]+\/?|@[\w.]+/i);
+  // Link
+  const linkMatch=texto.match(/https?:\/\/(?:www\.)?(?:instagram|facebook)\.com\/[\w.]+\/?|@[\w.]+/i);
   if(linkMatch) r.link=linkMatch[0];
 
-  // Nombre: buscar patrones como "cliente: Juan" o "nombre: Juan"
+  // Nombre
   const nombreMatch=texto.match(/(?:cliente|nombre|comprador)[:]\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/i);
   if(nombreMatch) r.nombre=nombreMatch[1];
 
   // Teléfono
-  const telMatch=texto.match(/(?:\+?56\s*)?9\s*\d{4}\s*\d{4}|\+?56\d{9}/);
+  const telMatch=texto.match(/(?:\+?56\s*)?9\s*\d{4}\s*\d{4}/);
   if(telMatch) r.telefono=telMatch[0].replace(/\s/g,'');
 
-  // Envío vs retiro
-  if(/env[íi]o|despacho|starken|correo|encomienda/i.test(txt)) r.envio='si';
-  else if(/retiro|presencial|busca|pasa a buscar/i.test(txt)) r.envio='no';
+  // Envío
+  if(/env[íi]o|despacho|starken|encomienda/i.test(txt)) r.envio='si';
+  else if(/retiro|presencial|pasa a buscar/i.test(txt)) r.envio='no';
 
   // Ciudad
-  const ciudades=['santiago','valparaíso','viña','concepción','antofagasta','temuco','iquique','rancagua','talca','arica','puerto montt','coquimbo','la serena','calama','osorno','valdivia','punta arenas','copiapó','talcahuano','coronel','quilicura','maipú','pudahuel','la florida','san miguel','peñalolén','cerro navia','los andes','linares'];
+  const ciudades=['santiago','valparaíso','viña del mar','concepción','antofagasta','temuco','iquique','rancagua','talca','arica','puerto montt','coquimbo','la serena','calama','osorno','valdivia','punta arenas','copiapó','talcahuano','coronel','quilicura','maipú','la florida','san miguel','los andes'];
   for(const c of ciudades){
-    if(txt.includes(c)){r.ciudad=c.charAt(0).toUpperCase()+c.slice(1);break;}
+    if(txt.includes(c)){r.ciudad=c.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');break;}
   }
 
-  // Dirección
-    const dirMatch=texto.match(/(?:direcci[oó]n|calle|av[.] |avenida|pasaje|villa|conjunto)[: ]+([^,\n]+)/i);
-  if(dirMatch) r.direccion=dirMatch[1].trim();
-
-  // Fecha y hora de retiro
+  // Fecha y hora retiro
   const fechaMatch=texto.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
   if(fechaMatch){
-    const d=fechaMatch[1].padStart(2,'0');
-    const m=fechaMatch[2].padStart(2,'0');
-    const y=fechaMatch[3]?fechaMatch[3].length===2?'20'+fechaMatch[3]:fechaMatch[3]:new Date().getFullYear();
+    const d=fechaMatch[1].padStart(2,'0'),m=fechaMatch[2].padStart(2,'0');
+    const y=fechaMatch[3]?(fechaMatch[3].length===2?'20'+fechaMatch[3]:fechaMatch[3]):new Date().getFullYear();
     r.retiroFecha=y+'-'+m+'-'+d;
   }
-  // Día de semana
-  const dias={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,sábado:6,sabado:6,domingo:0};
+  const dias={lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
   for(const[dia,num] of Object.entries(dias)){
     if(txt.includes(dia)&&!r.retiroFecha){
-      const hoy=new Date();const diff=(num-hoy.getDay()+7)%7||7;
-      const fecha=new Date(hoy);fecha.setDate(hoy.getDate()+diff);
-      r.retiroFecha=fecha.toISOString().split('T')[0];
-      break;
+      const hoy=new Date(),diff=(num-hoy.getDay()+7)%7||7;
+      const f=new Date(hoy);f.setDate(hoy.getDate()+diff);
+      r.retiroFecha=f.toISOString().split('T')[0]; break;
     }
   }
   const horaMatch=texto.match(/(\d{1,2}):(\d{2})\s*(?:hrs?|horas?|pm|am)?/i);
   if(horaMatch) r.retiroHora=horaMatch[1].padStart(2,'0')+':'+horaMatch[2];
 
-  // Productos - buscar menciones de packs
+  // Productos
   const productosMap=[
     {regex:/pack\s*55\s*\+\s*hit/i,nombre:'Pack 55 + HIT'},
-    {regex:/pack\s*20\s*(?:holo|holográfi)/i,nombre:'Pack 20 Holografico'},
-    {regex:/pack\s*20\s*(?:holo|holográfi)\s*\+\s*hit/i,nombre:'Pack 20 Holografico + HIT'},
-    {regex:/pack\s*20\s*(?:reverse|brillante)/i,nombre:'Pack 20 Reverse'},
+    {regex:/pack\s*20\s*holo[a-z]*\s*\+\s*hit/i,nombre:'Pack 20 Holografico + HIT'},
     {regex:/pack\s*20\s*(?:reverse|brillante)\s*\+\s*hit/i,nombre:'Pack 20 Reverse + HIT'},
+    {regex:/pack\s*20\s*holo/i,nombre:'Pack 20 Holografico'},
+    {regex:/pack\s*20\s*(?:reverse|brillante)/i,nombre:'Pack 20 Reverse'},
     {regex:/pack\s*50\s*entrenador/i,nombre:'Pack 50 Entrenadores'},
     {regex:/10\s*cartas?\s*hit/i,nombre:'10 cartas HIT'},
     {regex:/pack\s*55/i,nombre:'Pack 55'},
     {regex:/pack\s*meta/i,nombre:'Pack Meta'},
     {regex:/ilustrador/i,nombre:'Ilustradores'},
-    {regex:/hit/i,nombre:'Hits'},
     {regex:/pok[eé]dex/i,nombre:'Pokédex'},
     {regex:/entrenador/i,nombre:'Entrenadores'},
     {regex:/caja[s]?\s*vac[ií]/i,nombre:'Cajas vacías'},
   ];
-
   for(const p of productosMap){
-    const match=texto.match(p.regex);
-    if(match&&!r.items.find(i=>i.nombre===p.nombre)){
-      // Buscar cantidad cercana al match
-      const idx=texto.search(p.regex);
-      const contexto=texto.substring(Math.max(0,idx-20),idx+30);
-      const qtyMatch=contexto.match(/(\d+)\s*(?:pack|unidad|x)?|(?:pack|x)\s*(\d+)/i);
-      const qty=qtyMatch?(parseInt(qtyMatch[1])||parseInt(qtyMatch[2])||1):1;
+    if(p.regex.test(txt)&&!r.items.find(i=>i.nombre===p.nombre)){
+      const idx2=txt.search(p.regex);
+      const ctx=txt.substring(Math.max(0,idx2-15),idx2+20);
+      const qm=ctx.match(/(\d+)\s*x|x\s*(\d+)|(\d+)\s*pack/i);
+      const qty=qm?(parseInt(qm[1]||qm[2]||qm[3])||1):1;
       r.items.push({nombre:p.nombre,precio:PACKS_FIJOS[p.nombre]||0,qty});
     }
   }
-
-  // Monto total si no hay items
   if(!r.items.length){
-    const montoMatch=texto.match(/\$?\s*(\d{1,3}(?:\.\d{3})*|\d{4,7})\s*(?:pesos?|clp)?/i);
-    if(montoMatch){
-      const monto=parseInt(montoMatch[1].replace(/\./g,''));
-      r.items.push({nombre:'Otro',precio:monto,qty:1});
-    }
+    const montoMatch=texto.match(/\$\s*(\d{1,3}(?:[.,]\d{3})*)/);
+    if(montoMatch) r.items.push({nombre:'Otro',precio:parseInt(montoMatch[1].replace(/[.,]/g,'')),qty:1});
+    else r.desc=texto.substring(0,300);
   }
-
-  // Descripción: todo el texto como desc si no hay items claros
-  if(r.items.length===0||r.items[0].nombre==='Otro'){
-    r.desc=texto.substring(0,200);
-  }
-
   return r;
 }
+
+function normalizarProducto(nombre){
+  const n=nombre.toLowerCase().trim();
+  if(/pack\s*55.*hit/i.test(n)) return 'Pack 55 + HIT';
+  if(/pack\s*20.*holo.*hit/i.test(n)) return 'Pack 20 Holografico + HIT';
+  if(/pack\s*20.*(?:reverse|brillante).*hit/i.test(n)) return 'Pack 20 Reverse + HIT';
+  if(/pack\s*20.*holo/i.test(n)) return 'Pack 20 Holografico';
+  if(/pack\s*20.*(?:reverse|brillante)/i.test(n)) return 'Pack 20 Reverse';
+  if(/pack\s*50.*entrenador/i.test(n)) return 'Pack 50 Entrenadores';
+  if(/10.*cartas.*hit/i.test(n)) return '10 cartas HIT';
+  if(/pack\s*55/i.test(n)) return 'Pack 55';
+  if(/pack.*meta/i.test(n)) return 'Pack Meta';
+  if(/ilustrador/i.test(n)) return 'Ilustradores';
+  if(/pok[eé]dex/i.test(n)) return 'Pokédex';
+  if(/entrenador/i.test(n)) return 'Entrenadores';
+  if(/caja.*vac[ií]/i.test(n)) return 'Cajas vacías';
+  if(/hit/i.test(n)) return 'Hits';
+  return nombre; // Keep original if no match
+}
+
 
 function normalizarCanal(c){
   if(!c)return '';
