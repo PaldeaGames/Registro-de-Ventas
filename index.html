@@ -438,9 +438,8 @@ function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]')
 function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
 function getCfg(){
-  // URL hardcoded with ?carpeta=RV — never read from localStorage to avoid stale URLs
   return {
-    url:"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec?carpeta=RV",
+    url:"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec",
     tab:"Registro de Ventas"
   };
 }
@@ -869,7 +868,7 @@ function actCostoEnvio(id){
 async function actualizarSheets(id, costoEnvio, total, estado){
   const cfg=getCfg();if(!cfg.url)return;
   try{
-    const body=JSON.stringify({accion:'actualizar',codigo:id,costoEnvio,total,estado:estado||'enviado',tab:cfg.tab||'Registro de Ventas'});
+    const body=JSON.stringify({carpeta:'RV',accion:'actualizar',codigo:id,costoEnvio,total,estado:estado||'enviado',tab:cfg.tab||'Registro de Ventas'});
     await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body});
   }catch(e){console.error(e);}
 }
@@ -913,6 +912,7 @@ async function sincronizarStock(pack, cantidad){
       method:'POST',
       headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({
+        carpeta:'RV',
         accion:'actualizarStock',
         tab:'Packs',
         packId,
@@ -1099,7 +1099,7 @@ async function enviarSheets(v){
     envio:v.envio==='si'?'Si':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',
     costoEnvio:idx===0?v.costoEnvio:'',estado:v.estado
   }));
-  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
+  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
 }
 
 
@@ -1144,7 +1144,7 @@ async function exportarHistorialSheets(){
       const resp=await fetch(cfg.url,{
         method:'POST',
         headers:{'Content-Type':'text/plain'},
-        body:JSON.stringify({tab:cfg.tab,rows:batch})
+        body:JSON.stringify({carpeta:'RV',tab:cfg.tab,rows:batch})
       });
       const txt=await resp.text();
       console.log('Batch '+(b/batchSize+1)+' response:',txt);
