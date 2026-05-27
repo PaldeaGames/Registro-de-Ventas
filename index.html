@@ -953,7 +953,11 @@ function renderPendientes(){
     const entrega=v.envio==='si'?(v.ciudad||'Sin ciudad'):'Retiro'+retH;
     const descP=v.desc?`<p style="color:var(--accent2);margin-top:3px;">${v.desc}</p>`:'';
     const accion=v.envio==='si'
-      ?`<input type="number" placeholder="Costo envio" id="cep_${v.id}" style="width:110px;padding:6px 8px;font-size:11px;margin-bottom:4px;"><button class="btn btn-secondary btn-sm" onclick="actCostoEnvio('${v.id}')">Marcar enviado</button><button class="btn btn-secondary btn-sm" style="margin-top:4px;" onclick="copiarDestinatario('${v.id}')">&#128203; Copiar destinatario</button>`
+      ?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
+          <input type="number" placeholder="Costo Starken $" id="cep_${v.id}" style="width:130px;padding:7px 10px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
+          <button class="btn btn-primary btn-sm" onclick="confirmarEnvioDesdeInput('${v.id}')">&#10003; Confirmar envío</button>
+          <button class="btn btn-secondary btn-sm" onclick="copiarDestinatario('${v.id}')">&#128203; Copiar destinatario</button>
+        </div>`
       :`<button class="btn btn-secondary btn-sm" onclick="abrirModal('${v.id}')">Entregado</button>`;
     const icon=v.envio==='si'?'&#128230;':'&#127968;';
     return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
@@ -1106,14 +1110,15 @@ async function enviarSheets(v){
   // Siempre UNA sola fila por venta
   // Productos resumidos en campo tipo
   const items=v.items||[{nombre:v.tipo,qty:1,precio:v.monto}];
-  const tipoResumen=items.map(i=>(i.qty>1?i.qty+'x ':'')+i.nombre).join(', ');
+  // Tipo: si hay un solo producto usar su nombre, si hay varios usar el tipo guardado en v.tipo
+  const tipoSheet=items.length===1?items[0].nombre:(v.tipo||items.map(i=>i.nombre).join(', '));
   const rows=[{
     codigo:v.id,
     fecha:fmtFechaSheet(v.fecha),
     cliente:v.cliente,
     canal:v.canal,
     link:v.link,
-    tipo:tipoResumen,
+    tipo:tipoSheet,
     cantidad:items.reduce((a,i)=>a+(i.qty||1),0),
     descripcion:v.desc||'',
     monto:v.monto,
@@ -1243,6 +1248,29 @@ function copiarDestinatario(id){
     document.body.removeChild(ta);
     toast('✓ Copiado');
   });
+}
+
+
+function confirmarEnvioDesdeInput(id){
+  const input=document.getElementById('cep_'+id);
+  if(!input) return toast('Input no encontrado');
+  const costo=parseInt(input.value)||0;
+  if(!costo) return toast('Ingresa el costo de envío Starken');
+
+  const ventas=getVentas();
+  const v=ventas.find(v=>v.id===id);
+  if(!v) return toast('Venta no encontrada');
+
+  v.costoEnvio=costo;
+  v.total=v.monto+costo;
+  v.estado='enviado';
+  setVentas(ventas);
+
+  // Sincronizar con Google Sheets
+  actualizarSheets(id, costo, v.total, 'enviado');
+
+  toast('✓ Enviado — costo $'+costo.toLocaleString('es-CL')+' actualizado en Sheets');
+  renderAll();
 }
 
 
