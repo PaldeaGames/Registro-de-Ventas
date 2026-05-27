@@ -44,7 +44,7 @@ label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-tran
 input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--font-body);font-size:14px;outline:none;transition:border-color .2s;width:100%;}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);}
 select option{background:var(--surface2);}
-textarea{resize:vertical;min-height:60px;}
+textarea{resize:vertical;min-height:110px;}
 .add-pack-row{display:grid;grid-template-columns:1fr 56px auto;gap:8px;align-items:center;margin-bottom:8px;}
 .ci{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 12px;margin-bottom:6px;}
 .ci-name{font-size:13px;font-weight:500;}.ci-qty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
@@ -154,7 +154,7 @@ textarea{resize:vertical;min-height:60px;}
   <div class="section-title">NUEVA VENTA</div>
   <div class="parse-box">
     <div class="parse-box-title">⚡ Pegar conversación — IA extrae los datos</div>
-    <textarea id="parseInput" placeholder="Pegá aquí el texto de la conversación con el cliente..." style="margin-bottom:8px;"></textarea>
+    <textarea id="parseInput" placeholder="Pegá aquí el texto de la conversación con el cliente..." style="margin-bottom:8px;min-height:140px;"></textarea>
     <button class="btn btn-secondary btn-sm" onclick="parsearConv()">Extraer automáticamente</button>
   </div>
   <div class="card">
@@ -227,7 +227,7 @@ textarea{resize:vertical;min-height:60px;}
   </div>
   <div class="card">
     <div class="card-title">Descripción libre</div>
-    <textarea id="fDesc" placeholder="Detalle de la venta — cartas específicas, notas, etc."></textarea>
+    <textarea id="fDesc" placeholder="Detalle de la venta — cartas específicas, notas, etc." style="min-height:130px;"></textarea>
   </div>
   <div class="card">
     <div class="card-title">Entrega</div>
