@@ -1103,13 +1103,27 @@ function fmtFechaSheet(iso){
 
 async function enviarSheets(v){
   const cfg=getCfg();if(!cfg.url)return;
-  const rows=(v.items||[{nombre:v.tipo,qty:1,precio:v.monto}]).map((item,idx)=>({
-    codigo:v.id,fecha:fmtFechaSheet(v.fecha),cliente:v.cliente,canal:v.canal,link:v.link,
-    tipo:item.nombre,cantidad:item.qty,descripcion:idx===0?v.desc||'':'',
-    monto:item.precio*(item.qty||1),total:idx===0?v.total:'',
-    envio:v.envio==='si'?'Si':'No',empresa:v.empresa||'',ciudad:v.ciudad||'',
-    costoEnvio:idx===0?v.costoEnvio:'',estado:v.estado
-  }));
+  // Siempre UNA sola fila por venta
+  // Productos resumidos en campo tipo
+  const items=v.items||[{nombre:v.tipo,qty:1,precio:v.monto}];
+  const tipoResumen=items.map(i=>(i.qty>1?i.qty+'x ':'')+i.nombre).join(', ');
+  const rows=[{
+    codigo:v.id,
+    fecha:fmtFechaSheet(v.fecha),
+    cliente:v.cliente,
+    canal:v.canal,
+    link:v.link,
+    tipo:tipoResumen,
+    cantidad:items.reduce((a,i)=>a+(i.qty||1),0),
+    descripcion:v.desc||'',
+    monto:v.monto,
+    total:v.total,
+    envio:v.envio==='si'?'Si':'No',
+    empresa:v.empresa||'',
+    ciudad:v.ciudad||'',
+    costoEnvio:v.costoEnvio||0,
+    estado:v.estado
+  }];
   try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
 }
 
