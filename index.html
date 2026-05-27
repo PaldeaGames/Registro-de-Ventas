@@ -1000,7 +1000,7 @@ function renderPendientes(){
           <button class="btn btn-secondary btn-sm" onclick="marcarRetirado('${v.id}')">Entregado</button>
         </div>`;
     const icon=v.envio==='si'?'&#128230;':'&#127968;';
-    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
@@ -1314,14 +1314,16 @@ function confirmarRetiro(id){
   v.estado='por retirar';
   setVentas(ventas);
 
+  // Feedback visual inmediato en el botón
+  const btn=document.querySelector(`button[onclick="confirmarRetiro('${id}')"]`);
+  if(btn){btn.textContent='✓ Retiro confirmado';btn.style.background='#b7e1cd';btn.style.color='#000';btn.disabled=true;}
+
   // Sincronizar con Sheets
   actualizarRetiroSheets(id, fecha, hora);
-
-  // Programar recordatorio 1h antes
   programarRec(v);
 
   toast('✓ Retiro agendado: '+fmtF(fecha)+' a las '+hora);
-  renderAll();
+  setTimeout(()=>renderAll(), 1500);
 }
 
 async function actualizarRetiroSheets(id, retiroFecha, retiroHora){
@@ -1368,7 +1370,7 @@ function confirmarEnvioDesdeInput(id){
 
 
 function fmt(n){return '$'+Math.round(n||0).toLocaleString('es-CL');}
-function fmtF(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('es-CL',{day:'numeric',month:'short'});}
+function fmtF(s){if(!s)return '';const d=new Date(s+'T12:00:00');return d.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'short'}).replace(/^\w/,c=>c.toUpperCase());}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
 </script>
 </body>
