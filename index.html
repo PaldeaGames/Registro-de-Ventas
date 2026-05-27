@@ -901,7 +901,11 @@ function renderVentas(){
   if(filtroV==='enviado')lista=lista.filter(v=>v.estado==='enviado');
   if(!lista.length){el.innerHTML='<div class="empty">SIN VENTAS</div>';return;}
   el.innerHTML=lista.map(v=>{
-    const eb=v.estado==='enviado'?'<span class="badge b-enviado">&#10003; Enviado</span>':v.estado==='entregado'?'<span class="badge b-entregado">&#10003; Entregado</span>':'<span class="badge b-pendiente">Pendiente</span>';
+    const eb=v.estado==='enviado'?'<span class="badge b-enviado">&#10003; Enviado</span>':
+      v.estado==='entregado'?'<span class="badge b-entregado">&#10003; Entregado</span>':
+      v.estado==='retirado'?'<span class="badge b-entregado">&#10003; Retirado</span>':
+      v.estado==='por retirar'?'<span class="badge" style="background:rgba(251,146,60,.1);color:#fb923c;border:1px solid rgba(251,146,60,.3);">&#128336; Por retirar</span>':
+      '<span class="badge b-pendiente">Pendiente</span>';
     const ciudad=v.ciudad||'Envío';
     const retiroF=v.retiroFecha?' '+fmtF(v.retiroFecha):'';
     const tb=v.envio==='si'?`<span class="badge b-envio">&#128230; ${ciudad}</span>`:`<span class="badge b-retiro">&#127968; Retiro${retiroF}</span>`;
@@ -1006,11 +1010,12 @@ function proxDespacho(){const d=new Date();const day=d.getDay();let dias=day<=3?
 function abrirModal(id){ventaEntregaId=id;const v=getVentas().find(v=>v.id===id);document.getElementById('modalInfo').innerHTML='<strong>'+v.cliente+'</strong> — '+(v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo);document.getElementById('modalEntrega').classList.add('open');}
 function confirmarEntrega(){
   const ventas=getVentas();const v=ventas.find(v=>v.id===ventaEntregaId);
-  if(v)v.estado='entregado';
+  if(!v)return;
+  const nuevoEstado=v.envio==='no'?'retirado':'entregado';
+  v.estado=nuevoEstado;
   setVentas(ventas);
-  // Sync to Sheets
-  actualizarSheets(ventaEntregaId,v.costoEnvio||0,v.total,'entregado');
-  cerrarModal();toast('✓ Marcado como entregado');renderAll();
+  actualizarSheets(ventaEntregaId,v.costoEnvio||0,v.total,nuevoEstado);
+  cerrarModal();toast('✓ Marcado como '+nuevoEstado);renderAll();
 }
 function cerrarModal(){document.getElementById('modalEntrega').classList.remove('open');}
 
@@ -1160,10 +1165,12 @@ async function enviarSheets(v){
     monto:v.monto,
     total:v.total,
     envio:v.envio==='si'?'Si':'No',
+    retiroFecha:v.retiroFecha?fmtFechaSheet(v.retiroFecha):'',
+    retiroHora:v.retiroHora||'',
     empresa:v.empresa||'',
     ciudad:v.ciudad||'',
     costoEnvio:v.costoEnvio||0,
-    estado:v.estado
+    estado:v.estado||'pendiente'
   }];
   try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
 }
@@ -1298,9 +1305,10 @@ function confirmarRetiro(id){
 
   v.retiroFecha=fecha;
   v.retiroHora=hora;
+  v.estado='por retirar';
   setVentas(ventas);
 
-  // Sincronizar con Sheets - enviar retiroFecha y retiroHora
+  // Sincronizar con Sheets
   actualizarRetiroSheets(id, fecha, hora);
 
   // Programar recordatorio 1h antes
@@ -1322,6 +1330,7 @@ async function actualizarRetiroSheets(id, retiroFecha, retiroHora){
         codigo:id,
         retiroFecha:retiroFecha,
         retiroHora:retiroHora,
+        estado:'por retirar',
         tab:cfg.tab||'Registro de Ventas'
       })
     });
