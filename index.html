@@ -82,16 +82,7 @@ textarea{resize:vertical;min-height:60px;}
 .vn{font-size:12px;color:var(--muted);margin-top:5px;font-style:italic;border-left:2px solid var(--border);padding-left:8px;}
 .ce-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;}
 .ce-row input{width:130px;padding:6px 10px;font-size:12px;}
-.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
-.sc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color .2s;}
-.sc:hover{border-color:var(--border2);}
-.sc-name{font-size:12px;font-weight:500;margin-bottom:3px;line-height:1.3;}
-.sc-price{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:10px;}
-.sc-bar{height:3px;background:var(--surface3);border-radius:2px;margin-bottom:7px;overflow:hidden;}
-.sc-bf{height:100%;border-radius:2px;background:var(--accent);transition:width .5s;}
-.sc-qty{font-family:var(--font-display);font-size:30px;line-height:1;}
-.sc-qty.low{color:var(--red);}.sc-qty.mid{color:var(--accent2);}.sc-qty.ok{color:var(--accent);}
-.sc-edit{display:flex;gap:5px;margin-top:8px;}.sc-edit input{width:52px;padding:5px 7px;font-size:11px;}
+
 .pi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;}
 .pf{text-align:center;background:var(--surface2);border-radius:7px;padding:8px 10px;}
 .pf-d{font-family:var(--font-display);font-size:26px;color:var(--accent);line-height:1;}
@@ -138,7 +129,6 @@ textarea{resize:vertical;min-height:60px;}
   <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('nueva',this)">+ Nueva Venta</button>
   <button class="tab" onclick="showTab('ventas',this)">Ventas</button>
-  <button class="tab" onclick="showTab('stock',this)">Stock</button>
   <button class="tab" onclick="showTab('pendientes',this)" id="tab-btn-pendientes">Pendientes</button>
   <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
   <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
@@ -265,10 +255,6 @@ textarea{resize:vertical;min-height:60px;}
   <div id="ventasList"></div>
 </div>
 
-<div class="section" id="tab-stock">
-  <div class="section-title">STOCK</div>
-  <div class="stock-grid" id="stockGrid"></div>
-</div>
 
 <div class="section" id="tab-pendientes">
   <div class="section-title">PENDIENTES</div>
@@ -433,7 +419,7 @@ window.onload=()=>{
   renderAll();
 };
 
-function renderAll(){renderDash();renderVentas();renderStock();renderPendientes();renderInteresados();renderResumen();updateBadge();}
+function renderAll(){renderDash();renderVentas();renderPendientes();renderInteresados();renderResumen();updateBadge();}
 function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]');}
 function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
@@ -872,49 +858,6 @@ async function actualizarSheets(id, costoEnvio, total, estado){
     await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body});
   }catch(e){console.error(e);}
 }
-
-function renderStock(){
-  const stock=getStock();const el=document.getElementById('stockGrid');
-  el.innerHTML=STOCK_PACKS.map(p=>{
-    const qty=stock[p]??10;const pct=Math.min((qty/10)*100,100);
-    const cls=qty<=2?'low':qty<=5?'mid':'ok';
-    const clr=qty<=2?'background:var(--red);':qty<=5?'background:var(--accent2);':'';
-    const pid=p.replace(/[ +]/g,'_');
-    return `<div class="sc"><div class="sc-name">${p}</div><div class="sc-price">${fmt(PACKS_FIJOS[p])}</div><div class="sc-bar"><div class="sc-bf" style="width:${pct}%;${clr}"></div></div><div class="sc-qty ${cls}">${qty}</div><div class="sc-edit"><input type="number" min="0" value="${qty}" id="sc_${pid}"><button class="btn btn-secondary btn-sm" onclick="actStock('${p}')">Guardar</button></div></div>`;
-  }).join('');
-}
-
-function actStock(pack){
-  const val=parseInt(document.getElementById('sc_'+pack.replace(/[ +]/g,'_')).value);
-  if(isNaN(val)||val<0)return toast('Valor inválido');
-  const s=getStock();s[pack]=val;setStock(s);
-  sincronizarStock(pack, val);
-  toast('Stock actualizado');renderStock();
-}
-
-async function sincronizarStock(pack, cantidad){
-  const cfg=getCfg();
-  const idMap={
-    'Pack 55':'pack-55',
-    'Pack 55 + HIT':'pack-55-hit',
-    'Pack 20 Holografico':'pack-20-holo',
-    'Pack 20 Holografico + HIT':'pack-20-holo-hit',
-    'Pack 20 Reverse':'pack-20-rev',
-    'Pack 20 Reverse + HIT':'pack-20-rev-hit',
-    'Pack 50 Entrenadores':'pack-entrena',
-    '10 cartas HIT':'pack-hit'
-  };
-  const packId=idMap[pack];
-  if(!packId)return;
-  try{
-    await fetch(cfg.url,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({carpeta:'RV',accion:'actualizarStock',tab:'Packs',packId,cantidad})
-    });
-  }catch(e){console.error('Stock sync error:',e);}
-}
-
 
 function updateBadge(){
   const cnt=getVentas().filter(v=>v.estado==='pendiente').length;
