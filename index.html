@@ -725,9 +725,9 @@ function parsearTextoLocal(texto){
   let descVal='';
   let enDesc=false;
   for(const linea of lineas){
-    if(/descripci[oó]n\s*libre\s*[:\-]/i.test(linea)){
+    if(/descripci[oó]n\s*libre/i.test(linea)){
       // Mismo texto en la línea después del ":"
-      const m=linea.match(/descripci[oó]n\s*libre\s*[:\-]\s*(.+)/i);
+      const m=linea.match(/descripci[oó]n\s*libre\s*[:\-]?\s*(.+)/i);
       if(m&&m[1]){const v=limpiar(m[1]);if(v) descVal=v;}
       enDesc=true;
       continue;
