@@ -439,10 +439,10 @@ function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
 function getCfg(){
   const saved=JSON.parse(localStorage.getItem('pdg_cfg')||'{}');
-  return {
-    url: saved.url || "https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec",
-    tab: saved.tab || "Registro de Ventas"
-  };
+  const baseUrl=saved.url||"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec";
+  // Always route through RV handler in Pikachu.gs router
+  const url=baseUrl.includes('carpeta')?baseUrl:baseUrl+'?carpeta=RV';
+  return {url, tab:saved.tab||"Registro de Ventas"};
 }
 function setVentas(v){localStorage.setItem('pdg_ventas',JSON.stringify(v));}
 function setStock(s){localStorage.setItem('pdg_stock',JSON.stringify(s));}
@@ -888,7 +888,38 @@ function renderStock(){
 function actStock(pack){
   const val=parseInt(document.getElementById('sc_'+pack.replace(/[ +]/g,'_')).value);
   if(isNaN(val)||val<0)return toast('Valor inválido');
-  const s=getStock();s[pack]=val;setStock(s);toast('Stock actualizado');renderStock();
+  const s=getStock();s[pack]=val;setStock(s);
+  sincronizarStock(pack, val);
+  toast('Stock actualizado');renderStock();
+}
+
+async function sincronizarStock(pack, cantidad){
+  const cfg=getCfg();if(!cfg.url)return;
+  // Map pack name to ID used in Packs sheet
+  const idMap={
+    'Pack 55':'pack-55',
+    'Pack 55 + HIT':'pack-55-hit',
+    'Pack 20 Holografico':'pack-20-holo',
+    'Pack 20 Holografico + HIT':'pack-20-holo-hit',
+    'Pack 20 Reverse':'pack-20-rev',
+    'Pack 20 Reverse + HIT':'pack-20-rev-hit',
+    'Pack 50 Entrenadores':'pack-entrena',
+    '10 cartas HIT':'pack-hit'
+  };
+  const packId=idMap[pack];
+  if(!packId)return;
+  try{
+    await fetch(cfg.url,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({
+        accion:'actualizarStock',
+        tab:'Packs',
+        packId,
+        cantidad
+      })
+    });
+  }catch(e){console.error('Stock sync error:',e);}
 }
 
 function updateBadge(){
