@@ -438,11 +438,11 @@ function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]')
 function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
 function getCfg(){
-  const saved=JSON.parse(localStorage.getItem('pdg_cfg')||'{}');
-  const baseUrl=saved.url||"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec";
-  // Always route through RV handler in Pikachu.gs router
-  const url=baseUrl.includes('carpeta')?baseUrl:baseUrl+'?carpeta=RV';
-  return {url, tab:saved.tab||"Registro de Ventas"};
+  // URL hardcoded with ?carpeta=RV — never read from localStorage to avoid stale URLs
+  return {
+    url:"https://script.google.com/macros/s/AKfycbzrAAinS91aQna2L0f7d0YZYYnNb61ZkG4kssH4MB0P2pQyr5PDYJm1yVchcJqWHYPB/exec?carpeta=RV",
+    tab:"Registro de Ventas"
+  };
 }
 function setVentas(v){localStorage.setItem('pdg_ventas',JSON.stringify(v));}
 function setStock(s){localStorage.setItem('pdg_stock',JSON.stringify(s));}
