@@ -893,8 +893,7 @@ function actStock(pack){
 }
 
 async function sincronizarStock(pack, cantidad){
-  const cfg=getCfg();if(!cfg.url)return;
-  // Map pack name to ID used in Packs sheet
+  const cfg=getCfg();
   const idMap={
     'Pack 55':'pack-55',
     'Pack 55 + HIT':'pack-55-hit',
@@ -911,16 +910,11 @@ async function sincronizarStock(pack, cantidad){
     await fetch(cfg.url,{
       method:'POST',
       headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({
-        carpeta:'RV',
-        accion:'actualizarStock',
-        tab:'Packs',
-        packId,
-        cantidad
-      })
+      body:JSON.stringify({carpeta:'RV',accion:'actualizarStock',tab:'Packs',packId,cantidad})
     });
   }catch(e){console.error('Stock sync error:',e);}
 }
+
 
 function updateBadge(){
   const cnt=getVentas().filter(v=>v.estado==='pendiente').length;
