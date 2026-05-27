@@ -969,13 +969,13 @@ async function actualizarSheets(id, costoEnvio, total, estado){
 }
 
 function updateBadge(){
-  const cnt=getVentas().filter(v=>v.estado==='pendiente').length;
+  const cnt=getVentas().filter(v=>v.estado==='pendiente'||v.estado==='por retirar').length;
   const btn=document.getElementById('tab-btn-pendientes');
   if(btn){const ex=btn.querySelector('.badge-count');if(ex)ex.remove();if(cnt>0){const b=document.createElement('span');b.className='badge-count';b.textContent=cnt;btn.appendChild(b);}}
 }
 
 function renderPendientes(){
-  const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente');
+  const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente'||v.estado==='por retirar');
   if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si');
   if(filtroP==='retiro')pend=pend.filter(v=>v.envio==='no');
   const el=document.getElementById('pendientesList');
