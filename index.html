@@ -550,7 +550,7 @@ function guardarVenta(){
   const envio=document.getElementById('fEnvio').value;
   const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
   const costoEnvio=0; // Se completa al despachar desde Pendientes
-  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:document.getElementById('fEnvio').value==='si'?document.getElementById('fEmp').value:'',ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,rut:document.getElementById('fRut').value,correo:document.getElementById('fCorreo').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?(costoEnvio>0?'enviado':'pendiente'):'pendiente',createdAt:new Date().toISOString()};
+  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:envio==='si'?document.getElementById('fEmp').value:'',ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,rut:document.getElementById('fRut').value,correo:document.getElementById('fCorreo').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?'pendiente':'por retirar',createdAt:new Date().toISOString()};
   const ventas=getVentas();ventas.push(v);setVentas(ventas);
   const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
   enviarSheets(v);
@@ -997,7 +997,7 @@ function renderPendientes(){
           <input type="date" id="rf_${v.id}" value="${v.retiroFecha||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
           <input type="time" id="rh_${v.id}" value="${v.retiroHora||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
           <button class="btn btn-primary btn-sm" onclick="confirmarRetiro('${v.id}')">&#10003; Confirmar retiro</button>
-          <button class="btn btn-secondary btn-sm" onclick="abrirModal('${v.id}')">Entregado</button>
+          <button class="btn btn-secondary btn-sm" onclick="marcarRetirado('${v.id}')">Entregado</button>
         </div>`;
     const icon=v.envio==='si'?'&#128230;':'&#127968;';
     return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
@@ -1016,6 +1016,15 @@ function confirmarEntrega(){
   setVentas(ventas);
   actualizarSheets(ventaEntregaId,v.costoEnvio||0,v.total,nuevoEstado);
   cerrarModal();toast('✓ Marcado como '+nuevoEstado);renderAll();
+}
+function marcarRetirado(id){
+  if(!confirm('¿Confirmar que la persona retiró el pedido?'))return;
+  const ventas=getVentas();const v=ventas.find(v=>v.id===id);
+  if(!v)return;
+  v.estado='retirado';
+  setVentas(ventas);
+  actualizarSheets(id,v.costoEnvio||0,v.total,'retirado');
+  toast('✓ Marcado como retirado');renderAll();
 }
 function cerrarModal(){document.getElementById('modalEntrega').classList.remove('open');}
 
@@ -1148,31 +1157,28 @@ function fmtFechaSheet(iso){
 
 async function enviarSheets(v){
   const cfg=getCfg();if(!cfg.url)return;
-  // Siempre UNA sola fila por venta
-  // Productos resumidos en campo tipo
   const items=v.items||[{nombre:v.tipo,qty:1,precio:v.monto}];
-  // Tipo: si hay un solo producto usar su nombre, si hay varios usar el tipo guardado en v.tipo
   const tipoSheet=items.length===1?items[0].nombre:(v.tipo||items.map(i=>i.nombre).join(', '));
-  const rows=[{
-    codigo:v.id,
-    fecha:fmtFechaSheet(v.fecha),
-    cliente:v.cliente,
-    canal:v.canal,
-    link:v.link,
-    tipo:tipoSheet,
-    cantidad:items.reduce((a,i)=>a+(i.qty||1),0),
-    descripcion:v.desc||'',
-    monto:v.monto,
-    total:v.total,
-    envio:v.envio==='si'?'Si':'No',
-    retiroFecha:v.retiroFecha?fmtFechaSheet(v.retiroFecha):'',
-    retiroHora:v.retiroHora||'',
-    empresa:v.empresa||'',
-    ciudad:v.ciudad||'',
-    costoEnvio:v.costoEnvio||0,
-    estado:v.estado||'pendiente'
-  }];
-  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows})});}catch(e){console.error(e);}
+  const fila={
+    codigo:     String(v.id||''),
+    fecha:      String(fmtFechaSheet(v.fecha)||''),
+    cliente:    String(v.cliente||''),
+    canal:      String(v.canal||''),
+    link:       String(v.link||''),
+    tipo:       String(tipoSheet||''),
+    cantidad:   Number(items.reduce((a,i)=>a+(i.qty||1),0)),
+    descripcion:String(v.desc||''),
+    monto:      Number(v.monto||0),
+    total:      Number(v.total||0),
+    envio:      v.envio==='si'?'Si':'No',
+    retiroFecha:String(v.retiroFecha?fmtFechaSheet(v.retiroFecha):''),
+    retiroHora: String(v.retiroHora||''),
+    empresa:    String(v.envio==='si'?(v.empresa||'Starken'):''),
+    ciudad:     String(v.ciudad||''),
+    costoEnvio: Number(v.costoEnvio||0),
+    estado:     String(v.estado||'por retirar')
+  };
+  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows:[fila]})});}catch(e){console.error(e);}
 }
 
 
