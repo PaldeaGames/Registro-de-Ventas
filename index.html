@@ -175,6 +175,28 @@ textarea{resize:vertical;min-height:60px;}
   <div class="card">
     <div class="card-title">Productos</div>
     <div class="add-pack-row">
+      <div class="form-group full" style="margin-bottom:12px;">
+        <label>Tipo de producto <span style="color:var(--muted);font-size:9px;">(va a columna Tipo en el Sheet)</span></label>
+        <select id="fTipoProducto" style="background:var(--surface2);border:1px solid rgba(200,241,53,.3);">
+          <option value="">— Seleccionar tipo —</option>
+          <option>Pack 55</option>
+          <option>Pack 55 + HIT</option>
+          <option>Pack 20 Holografico</option>
+          <option>Pack 20 Holografico + HIT</option>
+          <option>Pack 20 Reverse</option>
+          <option>Pack 20 Reverse + HIT</option>
+          <option>Pack 50 Entrenadores</option>
+          <option>10 cartas HIT</option>
+          <option>Pack Meta</option>
+          <option>Ilustradores</option>
+          <option>Hits</option>
+          <option>Pokédex</option>
+          <option>Entrenadores</option>
+          <option>Cajas vacías</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="card-title" style="margin-top:4px;margin-bottom:8px;">Items del carrito <span style="color:var(--muted);font-size:9px;">(para calcular precio)</span></div>
       <select id="fProdSel">
         <option value="">Elegir producto...</option>
         <optgroup label="Packs fijos">
@@ -528,7 +550,7 @@ function guardarVenta(){
   const envio=document.getElementById('fEnvio').value;
   const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
   const costoEnvio=0; // Se completa al despachar desde Pendientes
-  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:carrito.length===1?carrito[0].nombre:carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:document.getElementById('fEmp').value,ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,rut:document.getElementById('fRut').value,correo:document.getElementById('fCorreo').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?(costoEnvio>0?'enviado':'pendiente'):'pendiente',createdAt:new Date().toISOString()};
+  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:document.getElementById('fEmp').value,ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,rut:document.getElementById('fRut').value,correo:document.getElementById('fCorreo').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?(costoEnvio>0?'enviado':'pendiente'):'pendiente',createdAt:new Date().toISOString()};
   const ventas=getVentas();ventas.push(v);setVentas(ventas);
   const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
   enviarSheets(v);
@@ -538,7 +560,7 @@ function guardarVenta(){
 }
 
 function limpiarForm(){
-  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fRut','fCorreo','fRF','fRH'].forEach(id=>document.getElementById(id).value='');
+  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fRut','fCorreo','fRF','fRH'].forEach(id=>document.getElementById(id).value='');document.getElementById('fTipoProducto').value='';
   document.getElementById('fCanal').value='';document.getElementById('fEnvio').value='no';
   document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
   toggleEnvio();carrito=[];renderCarrito();
@@ -560,6 +582,15 @@ function parsearConv(){
 
       if(c.nombre_cliente) document.getElementById('fNombre').value=c.nombre_cliente;
       if(c.canal_de_venta) document.getElementById('fCanal').value=normalizarCanalJSON(c.canal_de_venta);
+      // Auto-seleccionar tipo: si hay un solo producto tipo pack, usarlo; sino Otro
+      if(j.productos&&j.productos.length===1){
+        const tp=normalizarProducto(j.productos[0].nombre);
+        const sel=document.getElementById('fTipoProducto');
+        for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===tp){sel.value=tp;break;}}
+        if(!sel.value) sel.value='Otro';
+      } else if(j.productos&&j.productos.length>1){
+        document.getElementById('fTipoProducto').value='Otro';
+      }
       if(c.usuario_link) document.getElementById('fLink').value=normalizarLink(c.usuario_link);
       if(c.fecha_venta){
         const fm=c.fecha_venta.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/);
