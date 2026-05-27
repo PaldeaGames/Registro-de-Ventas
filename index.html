@@ -643,11 +643,17 @@ function parsearTextoLocal(texto){
   else if(/whatsapp/i.test(txt)) r.canal='WhatsApp Business';
 
   // Extraer campos etiquetados (formato Gemini: "* Campo: valor" o "Campo: valor")
+  // Limpiar markdown ** y * de un valor
+  const limpiar=(v)=>v.replace(/\*+/g,'').replace(/^[:\s]+/,'').trim();
+
   const extraerCampo=(patrones)=>{
     for(const pat of patrones){
       for(const linea of lineas){
         const m=linea.match(pat);
-        if(m&&m[1]&&m[1].trim()&&m[1].trim().toLowerCase()!=='cliente') return m[1].trim();
+        if(m&&m[1]){
+          const val=limpiar(m[1]);
+          if(val&&val.toLowerCase()!=='cliente'&&val!=='-'&&val!=='dd-mm-aaaa'&&val!=='--:--') return val;
+        }
       }
     }
     return '';
@@ -661,13 +667,17 @@ function parsearTextoLocal(texto){
   ]);
   if(nombre && nombre.toLowerCase()!=='cliente') r.nombre=nombre;
 
-  // Link / usuario
+  // Link / usuario — limpiar markdown y prefijos
   const link=extraerCampo([
-    /usuario\s*[\/\]?\s*link\s*[:\-]\s*(.+)/i,
+    /usuario\s*\/\s*link\s*[:\-]\s*(.+)/i,
     /instagram\s*[:\-]\s*(.+)/i,
     /usuario\s*[:\-]\s*(.+)/i,
-    /link\s*[:\-]\s*(.+)/i,
   ]);
+  if(link){
+    const linkLimpio=link.replace(/^.*?link[:\s*]+/i,'').replace(/\*+/g,'').replace(/@/g,'').trim();
+    if(linkLimpio.startsWith('http')) r.link=linkLimpio;
+    else r.link='https://www.instagram.com/'+linkLimpio;
+  }
   if(link) r.link=link.startsWith('@')||link.startsWith('http')?link:'@'+link;
 
   // Fecha venta
@@ -711,8 +721,25 @@ function parsearTextoLocal(texto){
   const rhm=retiroLinea.match(/(\d{1,2}):(\d{2})/);
   if(rhm) r.retiroHora=rhm[1].padStart(2,'0')+':'+rhm[2];
 
-  // Descripción — buscar campo explícito primero
-  const descVal=extraerCampo([/descripci[oó]n\s*libre\s*[:\-]\s*(.+)/i,/descripci[oó]n\s*[:\-]\s*(.+)/i,/notas?\s*[:\-]\s*(.+)/i]);
+  // Descripción — puede ser multilínea después del label
+  let descVal='';
+  let enDesc=false;
+  for(const linea of lineas){
+    if(/descripci[oó]n\s*libre\s*[:\-]/i.test(linea)){
+      // Mismo texto en la línea después del ":"
+      const m=linea.match(/descripci[oó]n\s*libre\s*[:\-]\s*(.+)/i);
+      if(m&&m[1]){const v=limpiar(m[1]);if(v) descVal=v;}
+      enDesc=true;
+      continue;
+    }
+    if(enDesc){
+      // Parar si encontramos otro campo etiquetado
+      if(/^[*\s]*[A-ZÁÉÍÓÚ].{2,30}[:\-]/i.test(linea)&&!/dudunsparce|pikachu|pokemon|carta/i.test(linea)) break;
+      const v=limpiar(linea);
+      if(v) descVal+=(descVal?' ':'')+v;
+    }
+  }
+  if(!descVal) descVal=extraerCampo([/notas?\s*[:\-]\s*(.+)/i]);
   if(descVal) r.desc=descVal;
 
   // Productos — buscar líneas con precio y cantidad
