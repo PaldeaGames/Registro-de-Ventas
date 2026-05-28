@@ -469,22 +469,32 @@ function renderDash(){
   const lunes=new Date(now);lunes.setDate(now.getDate()-now.getDay()+1);
   const lunesFecha=lunes.toISOString().split('T')[0];
   const primerMes=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  const nombreMes=now.toLocaleDateString('es-CL',{month:'long'}).replace(/^\w/,c=>c.toUpperCase());
+
   let tH=0,cH=0,tS=0,cS=0,tM=0,cM=0,tT=0,cT=0,ep=0;
   ventas.forEach(v=>{
     tT+=v.monto;cT++;
     if(v.fecha===hoy){tH+=v.monto;cH++;}
-    if(v.fecha>=lunesFecha){tS+=v.monto;cS++;}
+    if(v.fecha>=lunesFecha&&v.fecha>=primerMes){tS+=v.monto;cS++;}
     if(v.fecha>=primerMes){tM+=v.monto;cM++;}
     if(v.envio==='si'&&v.estado!=='enviado')ep++;
   });
+
   document.getElementById('sHoy').textContent=fmt(tH);document.getElementById('sHoySub').textContent=cH+' venta'+(cH!==1?'s':'');
   document.getElementById('sSem').textContent=fmt(tS);document.getElementById('sSemSub').textContent=cS+' ventas';
-  document.getElementById('sMes').textContent=fmt(tM);document.getElementById('sMesSub').textContent=cM+' ventas';
+  document.getElementById('sMes').textContent=fmt(tM);document.getElementById('sMesSub').textContent=cM+' ventas · '+nombreMes;
   document.getElementById('sTotal').textContent=fmt(tT);document.getElementById('sTotalSub').textContent=cT+' ventas totales';
   document.getElementById('sEnvPend').textContent=ep;
   document.getElementById('sTicket').textContent=cM?fmt(Math.round(tM/cM)):'$0';
+
+  // Gráfico: últimos 7 días pero solo dentro del mes actual
   const bars=document.getElementById('chartBars');bars.innerHTML='';
-  const dias=[];for(let i=6;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);dias.push(d.toISOString().split('T')[0]);}
+  const dias=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(now);d.setDate(now.getDate()-i);
+    const iso=d.toISOString().split('T')[0];
+    if(iso>=primerMes) dias.push(iso);
+  }
   const maxV=Math.max(...dias.map(d=>ventas.filter(v=>v.fecha===d).reduce((a,v)=>a+v.monto,0)),1);
   dias.forEach(d=>{
     const sum=ventas.filter(v=>v.fecha===d).reduce((a,v)=>a+v.monto,0);
@@ -495,9 +505,13 @@ function renderDash(){
     col.innerHTML='<div class="bar '+(isHoy?'today':'other')+'" style="height:'+pct+'%" title="'+fmt(sum)+'"></div><div class="bar-label">'+lbl+'</div>';
     bars.appendChild(col);
   });
-  const cnt={};ventas.forEach(v=>{cnt[v.tipo]=(cnt[v.tipo]||0)+1;});
-  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
-  document.getElementById('topProd').textContent=top?top[0]+' — '+top[1]+' ventas':'—';
+
+  // Top producto del mes actual
+  const cntMes={};
+  ventas.filter(v=>v.fecha>=primerMes).forEach(v=>{cntMes[v.tipo]=(cntMes[v.tipo]||0)+1;});
+  const topMes=Object.entries(cntMes).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('topProd').textContent=topMes?topMes[0]+' — '+topMes[1]+' ventas':'—';
+
   const pend=ventas.filter(v=>v.estado==='pendiente').slice(0,4);
   const dd=document.getElementById('dashDesp');
   dd.innerHTML=pend.length?pend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>'+(v.envio==='si'?'📦':'🏠')+' <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">'+(v.ciudad||'Retiro')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:12px;">Sin despachos pendientes</div>';
@@ -1129,13 +1143,29 @@ function borrarHistorico(link){
 function borrarInt(id){const list=getInteresados().filter(i=>i.id!==id);localStorage.setItem('pdg_interesados',JSON.stringify(list));renderInteresados();}
 
 function renderResumen(){
-  const ventas=getVentas();const semanas={};
-  ventas.forEach(v=>{const d=new Date(v.fecha+'T12:00:00');const lunes=new Date(d);lunes.setDate(d.getDate()-d.getDay()+1);const key=lunes.toISOString().split('T')[0];if(!semanas[key])semanas[key]={ventas:[],lunes};semanas[key].ventas.push(v);});
-  const keys=Object.keys(semanas).sort().reverse().slice(0,8);
+  const ventas=getVentas();
+  const now=new Date();
+  const primerMes=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  const ultimoMes=new Date(now.getFullYear(),now.getMonth()+1,0).toISOString().split('T')[0];
+  const nombreMes=now.toLocaleDateString('es-CL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
+  const ventasMes=ventas.filter(v=>v.fecha>=primerMes&&v.fecha<=ultimoMes);
+  const semanas={};
+  ventasMes.forEach(v=>{
+    const d=new Date(v.fecha+'T12:00:00');
+    const lunes=new Date(d);lunes.setDate(d.getDate()-d.getDay()+1);
+    const key=lunes.toISOString().split('T')[0];
+    if(!semanas[key])semanas[key]={ventas:[],lunes};
+    semanas[key].ventas.push(v);
+  });
+  const keys=Object.keys(semanas).sort().reverse();
   const el=document.getElementById('resumenContenido');
-  if(!keys.length){el.innerHTML='<div class="empty">SIN DATOS</div>';return;}
+  // Botón informe mes anterior
+  const mesAntDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const nombreMesAnt=mesAntDate.toLocaleDateString('es-CL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
+  const btnInforme='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">📅 '+nombreMes+'</span><button class="btn btn-secondary btn-sm" onclick="descargarInformeMes()" style="font-size:11px;">⬇ Informe '+nombreMesAnt+' (.xlsx)</button></div>';
+  if(!keys.length){el.innerHTML=btnInforme+'<div style="color:var(--muted);font-size:13px;">Sin ventas este mes aún.</div>';return;}
   const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  el.innerHTML=keys.map(key=>{
+  el.innerHTML=btnInforme+keys.map(key=>{
     const s=semanas[key];const viernes=new Date(s.lunes);viernes.setDate(s.lunes.getDate()+6);
     const titulo=s.lunes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})+' al '+viernes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});
     let tS=0,tE=0,nV=0;
@@ -1147,6 +1177,58 @@ function renderResumen(){
     });
     return '<div class="card" style="margin-bottom:14px;"><div class="card-title">Semana del '+titulo+'</div><div style="overflow-x:auto;"><table class="sem-table"><thead><tr><th>Métrica</th>'+dias.map((d,i)=>'<th>'+d+'<br><span style="font-weight:normal;font-size:8px;">'+(new Date(s.lunes.getTime()+i*86400000)).getDate()+'/'+(new Date(s.lunes.getTime()+i*86400000).getMonth()+1).toString().padStart(2,'0')+'</span></th>').join('')+'<th>TOTAL</th><th>TICKET</th></tr></thead><tbody><tr><td>Ventas ($)</td>'+porDia.map(d=>'<td class="'+(d.tv?'va':'vm2')+'">'+(d.tv?fmt(d.tv):'—')+'</td>').join('')+'<td class="va">'+fmt(tS)+'</td><td class="vm2">'+(nV?fmt(Math.round(tS/nV)):'—')+'</td></tr><tr><td>N° ventas</td>'+porDia.map(d=>'<td class="vm2">'+(d.n||'—')+'</td>').join('')+'<td class="vm2">'+nV+'</td><td></td></tr><tr><td>Envíos ($)</td>'+porDia.map(d=>'<td class="vm2">'+(d.te?fmt(d.te):'—')+'</td>').join('')+'<td class="vm2">'+(tE?fmt(tE):'—')+'</td><td></td></tr></tbody></table></div></div>';
   }).join('');
+}
+
+function descargarInformeMes(){
+  const ventas=getVentas();
+  const now=new Date();
+  const mesAnt=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const primerMesAnt=new Date(mesAnt.getFullYear(),mesAnt.getMonth(),1).toISOString().split('T')[0];
+  const ultimoMesAnt=new Date(mesAnt.getFullYear(),mesAnt.getMonth()+1,0).toISOString().split('T')[0];
+  const nombreMesAnt=mesAnt.toLocaleDateString('es-CL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
+  const vm=ventas.filter(v=>v.fecha>=primerMesAnt&&v.fecha<=ultimoMesAnt);
+  if(!vm.length){toast('Sin ventas en '+nombreMesAnt);return;}
+
+  // Construir CSV con BOM para Excel
+  const bom='\uFEFF';
+  const sep=';';
+  const headers=['Código','Fecha','Cliente','Canal','Tipo','Cantidad','Monto','Total','Envío','Empresa','Ciudad','Costo Envío','Estado'];
+  const rows=vm.map(v=>[
+    v.id, v.fecha, v.cliente, v.canal,
+    v.items?v.items.map(i=>i.qty+'x '+i.nombre).join(' | '):v.tipo,
+    v.items?v.items.reduce((a,i)=>a+(i.qty||1),0):1,
+    v.monto, v.total,
+    v.envio==='si'?'Sí':'No',
+    v.empresa||'', v.ciudad||'',
+    v.costoEnvio||0, v.estado||''
+  ].map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(sep));
+
+  // Stats del mes
+  const totalMes=vm.reduce((a,v)=>a+v.monto,0);
+  const totalEnvios=vm.reduce((a,v)=>a+(v.costoEnvio||0),0);
+  const nEnvios=vm.filter(v=>v.envio==='si').length;
+  const nRetiros=vm.filter(v=>v.envio!=='si').length;
+  const ticket=Math.round(totalMes/vm.length);
+  const statsRows=[
+    '', '',
+    '"RESUMEN '+nombreMesAnt.toUpperCase()+'"',
+    '"Total ventas";"'+fmt(totalMes)+'"',
+    '"N° ventas";"'+vm.length+'"',
+    '"Ticket promedio";"'+fmt(ticket)+'"',
+    '"Envíos";"'+nEnvios+'"',
+    '"Retiros";"'+nRetiros+'"',
+    '"Total costos envío";"'+fmt(totalEnvios)+'"',
+  ];
+
+  const csv=bom+headers.join(sep)+'\n'+rows.join('\n')+'\n'+statsRows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='Informe_'+nombreMesAnt.replace(/ /g,'_')+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ Informe descargado — abrilo con Excel');
 }
 
 function fmtFechaSheet(iso){
