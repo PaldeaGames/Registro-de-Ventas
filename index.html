@@ -438,8 +438,85 @@ window.onload=()=>{
     HISTORICO.forEach(v=>{if(v.items)v.items.forEach(i=>{if(s[i.nombre]!==undefined)s[i.nombre]=Math.max(0,s[i.nombre]-i.qty);});});
     localStorage.setItem('pdg_stock',JSON.stringify(s));
   }
+  autoGuardarInformeMesAnterior();
   renderAll();
 };
+
+// ── INFORMES ──────────────────────────────────────────────────
+function getInformes(){return JSON.parse(localStorage.getItem('pdg_informes')||'[]');}
+function setInformes(v){localStorage.setItem('pdg_informes',JSON.stringify(v));}
+
+function autoGuardarInformeMesAnterior(){
+  const now=new Date();
+  const mesActual=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const informes=getInformes();
+  // Calcular mes anterior
+  const mesAntDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const mesAnt=mesAntDate.getFullYear()+'-'+String(mesAntDate.getMonth()+1).padStart(2,'0');
+  // Si ya existe informe de ese mes, no hacer nada
+  if(informes.find(i=>i.mes===mesAnt)) return;
+  // Si es el primer mes (no hay informes previos y estamos en el primer mes del año), no guardar
+  const ventas=getVentas();
+  const primerMesAnt=mesAnt+'-01';
+  const ultimoMesAnt=new Date(mesAntDate.getFullYear(),mesAntDate.getMonth()+1,0).toISOString().split('T')[0];
+  const vm=ventas.filter(v=>v.fecha>=primerMesAnt&&v.fecha<=ultimoMesAnt);
+  if(!vm.length) return; // Sin ventas ese mes, no guardar
+  // Guardar informe
+  const nombreMesAnt=mesAntDate.toLocaleDateString('es-CL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
+  const total=vm.reduce((a,v)=>a+v.monto,0);
+  const costoEnvios=vm.reduce((a,v)=>a+(v.costoEnvio||0),0);
+  const nEnvios=vm.filter(v=>v.envio==='si').length;
+  const nRetiros=vm.filter(v=>v.envio!=='si').length;
+  const ticket=Math.round(total/vm.length);
+  informes.push({mes:mesAnt,nombre:nombreMesAnt,total,ventas:vm.length,ticket,nEnvios,nRetiros,costoEnvios,data:vm});
+  setInformes(informes);
+}
+
+function descargarInformeMes(mes){
+  const informes=getInformes();
+  const inf=mes?informes.find(i=>i.mes===mes):null;
+  // Si no hay informe guardado, generar del mes anterior en tiempo real
+  const vm=inf?inf.data:(()=>{
+    const now=new Date();
+    const mesAntDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const primerMesAnt=new Date(mesAntDate.getFullYear(),mesAntDate.getMonth(),1).toISOString().split('T')[0];
+    const ultimoMesAnt=new Date(mesAntDate.getFullYear(),mesAntDate.getMonth()+1,0).toISOString().split('T')[0];
+    return getVentas().filter(v=>v.fecha>=primerMesAnt&&v.fecha<=ultimoMesAnt);
+  })();
+  const nombreArchivo=inf?inf.nombre:(()=>{const m=new Date(new Date().getFullYear(),new Date().getMonth()-1,1);return m.toLocaleDateString('es-CL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());})();
+  if(!vm||!vm.length){toast('Sin ventas en ese período');return;}
+  const bom='\uFEFF';const sep=';';
+  const headers=['Código','Fecha','Cliente','Canal','Tipo','Cantidad','Monto','Total','Envío','Empresa','Ciudad','Costo Envío','Estado'];
+  const rows=vm.map(v=>[
+    v.id,v.fecha,v.cliente,v.canal,
+    v.items?v.items.map(i=>i.qty+'x '+i.nombre).join(' | '):v.tipo,
+    v.items?v.items.reduce((a,i)=>a+(i.qty||1),0):1,
+    v.monto,v.total,v.envio==='si'?'Sí':'No',
+    v.empresa||'',v.ciudad||'',v.costoEnvio||0,v.estado||''
+  ].map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(sep));
+  const totalMes=vm.reduce((a,v)=>a+v.monto,0);
+  const totalEnvios=vm.reduce((a,v)=>a+(v.costoEnvio||0),0);
+  const statsRows=['','','"RESUMEN '+nombreArchivo.toUpperCase()+'"',
+    '"Total ventas";"'+fmt(totalMes)+'"','"N° ventas";"'+vm.length+'"',
+    '"Ticket promedio";"'+fmt(Math.round(totalMes/vm.length))+'"',
+    '"Envíos";"'+vm.filter(v=>v.envio==='si').length+'"',
+    '"Retiros";"'+vm.filter(v=>v.envio!=='si').length+'"',
+    '"Total costos envío";"'+fmt(totalEnvios)+'"'];
+  const csv=bom+headers.join(sep)+'\n'+rows.join('\n')+'\n'+statsRows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download='Informe_'+nombreArchivo.replace(/ /g,'_')+'.csv';
+  a.click();URL.revokeObjectURL(url);
+  toast('✓ Informe descargado — abrilo con Excel');
+}
+
+function resetearInformes(){
+  if(!confirm('¿Resetear todos los informes guardados? Esto solo borra el historial de informes, no las ventas.')) return;
+  localStorage.removeItem('pdg_informes');
+  renderResumen();
+  toast('✓ Historial de informes reseteado');
+}
 
 function renderAll(){renderDash();renderVentas();renderPendientes();renderInteresados();renderResumen();updateBadge();}
 function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]');}
@@ -1165,7 +1242,14 @@ function renderResumen(){
   const btnInforme='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">📅 '+nombreMes+'</span><button class="btn btn-secondary btn-sm" onclick="descargarInformeMes()" style="font-size:11px;">⬇ Informe '+nombreMesAnt+' (.xlsx)</button></div>';
   if(!keys.length){el.innerHTML=btnInforme+'<div style="color:var(--muted);font-size:13px;">Sin ventas este mes aún.</div>';return;}
   const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  el.innerHTML=btnInforme+keys.map(key=>{
+  const informes=getInformes();
+  const historialHTML=informes.length?'<div class="card" style="margin-bottom:14px;"><div class="card-title">📁 Informes guardados</div>'+
+    informes.slice().reverse().map(inf=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <div><strong>${inf.nombre}</strong> &nbsp;<span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">${inf.ventas} ventas · ${fmt(inf.total)}</span></div>
+      <button class="btn btn-secondary btn-sm" onclick="descargarInformeMes('${inf.mes}')" style="font-size:10px;">⬇ CSV</button>
+    </div>`).join('')+
+    '<div style="margin-top:10px;text-align:right;"><button class="btn btn-secondary btn-sm" onclick="resetearInformes()" style="font-size:10px;opacity:0.6;">🗑 Resetear año</button></div></div>':'';
+  el.innerHTML=btnInforme+historialHTML+keys.map(key=>{
     const s=semanas[key];const viernes=new Date(s.lunes);viernes.setDate(s.lunes.getDate()+6);
     const titulo=s.lunes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})+' al '+viernes.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});
     let tS=0,tE=0,nV=0;
