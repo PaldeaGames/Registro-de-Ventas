@@ -1314,16 +1314,17 @@ function confirmarRetiro(id){
   v.estado='por retirar';
   setVentas(ventas);
 
-  // Feedback visual inmediato en el botón
+  // Botón cambia a verde inmediatamente
   const btn=document.querySelector(`button[onclick="confirmarRetiro('${id}')"]`);
-  if(btn){btn.textContent='✓ Retiro confirmado';btn.style.background='#b7e1cd';btn.style.color='#000';btn.disabled=true;}
+  if(btn){
+    btn.style.background='#b7e1cd';
+    btn.style.color='#000';
+    btn.style.borderColor='#b7e1cd';
+  }
 
-  // Sincronizar con Sheets
   actualizarRetiroSheets(id, fecha, hora);
   programarRec(v);
-
   toast('✓ Retiro agendado: '+fmtF(fecha)+' a las '+hora);
-  setTimeout(()=>renderAll(), 1500);
 }
 
 async function actualizarRetiroSheets(id, retiroFecha, retiroHora){
