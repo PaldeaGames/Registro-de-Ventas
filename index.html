@@ -128,7 +128,7 @@ textarea{resize:vertical;min-height:110px;}
 <nav>
   <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('nueva',this)">+ Nueva Venta</button>
-  <button class="tab" onclick="showTab('ventas',this)">Ventas</button>
+  <button class="tab" id="tab-ventas-btn" onclick="showTab('ventas',this)">Ventas</button>
   <button class="tab" onclick="showTab('pendientes',this)" id="tab-btn-pendientes">Pendientes</button>
   <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
   <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
@@ -646,44 +646,85 @@ function agregarItemManual(){
 }
 
 function generarCodigo(canal){
-  const ventas=getVentas();
   const prefix=canal==='Instagram'?'I':canal==='Página Facebook'?'F':canal==='Messenger'?'M':'O';
-  const existentes=ventas.filter(v=>v.id.startsWith(prefix)).map(v=>parseInt(v.id.slice(1))||0);
+  const todas=[...getVentas(),...HISTORICO];
+  const existentes=todas.filter(v=>v.id&&v.id.startsWith(prefix)).map(v=>parseInt(v.id.slice(1))||0);
   return prefix+(Math.max(0,...existentes)+1).toString().padStart(4,'0');
 }
 
-async function guardarVenta(){
+function guardarVenta(){
   const nombre=document.getElementById('fNombre').value.trim();
   if(!nombre)return toast('Ingresá el nombre del cliente');
   if(!carrito.length)return toast('Agregá al menos un producto');
   const canal=document.getElementById('fCanal').value;
   if(!canal)return toast('Seleccioná el canal de venta');
-  const btnGuardar=document.getElementById('btnGuardar');
+
   const envio=document.getElementById('fEnvio').value;
   const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
-  const costoEnvio=0; // Se completa al despachar desde Pendientes
-  const v={id:generarCodigo(canal),fecha:document.getElementById('fFecha').value,cliente:nombre,canal,link:document.getElementById('fLink').value,tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),items:[...carrito],desc:document.getElementById('fDesc').value,monto,envio,empresa:envio==='si'?document.getElementById('fEmp').value:'',ciudad:document.getElementById('fCiu').value,direccion:document.getElementById('fDir').value,telefono:document.getElementById('fTel').value,rut:document.getElementById('fRut').value,correo:document.getElementById('fCorreo').value,costoEnvio,total:monto+costoEnvio,retiroFecha:document.getElementById('fRF').value,retiroHora:document.getElementById('fRH').value,estado:envio==='si'?'pendiente':'por retirar',createdAt:new Date().toISOString()};
-  const ventas=getVentas();ventas.push(v);setVentas(ventas);
-  const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
-  if(envio==='no'&&v.retiroFecha&&v.retiroHora)programarRec(v);
-  // Mostrar estado sync ANTES de limpiar para que el botón siga en DOM
-  if(btnGuardar){btnGuardar.style.transition='all .3s';btnGuardar.textContent='⏳ Sincronizando...';btnGuardar.disabled=true;}
+  const v={
+    id:generarCodigo(canal),
+    fecha:document.getElementById('fFecha').value,
+    cliente:nombre,
+    canal,
+    link:document.getElementById('fLink').value,
+    tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),
+    items:[...carrito],
+    desc:document.getElementById('fDesc').value,
+    monto,
+    envio,
+    empresa:envio==='si'?document.getElementById('fEmp').value:'',
+    ciudad:document.getElementById('fCiu').value,
+    direccion:document.getElementById('fDir').value,
+    telefono:document.getElementById('fTel').value,
+    rut:document.getElementById('fRut').value,
+    correo:document.getElementById('fCorreo').value,
+    costoEnvio:0,
+    total:monto,
+    retiroFecha:document.getElementById('fRF').value,
+    retiroHora:document.getElementById('fRH').value,
+    estado:envio==='si'?'pendiente':'por retirar',
+    createdAt:new Date().toISOString()
+  };
+
+  // 1. Guardar local
   try{
-    await enviarSheets(v);
-    if(btnGuardar){btnGuardar.style.background='#4ade80';btnGuardar.style.color='#000';btnGuardar.style.borderColor='#4ade80';btnGuardar.textContent='✓ Sincronizado con Sheets';}
-    toast('✓ '+v.id+' guardada y sincronizada');
+  const ventas=getVentas();
+  ventas.push(v);
+  setVentas(ventas);
+
+  // 2. Stock
+  const stock=getStock();
+  carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});
+  setStock(stock);
+
+  // 3. Recordatorio si retiro
+
+  // 4. Navegar a Ventas inmediatamente
+  limpiarForm();
+  renderAll();
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-ventas').classList.add('active');
+  document.getElementById('tab-ventas-btn').classList.add('active');
+
+  toast('✓ Venta '+v.id+' guardada');
+  }catch(err){console.error('[guardarVenta error]',err);toast('⚠ Error al guardar: '+err.message);return;}
+
+  // 5. Sync Sheets en background — no bloquea nada
+  const btn=document.getElementById('btnGuardar');
+  if(btn){btn.textContent='⏳ Sync...';btn.disabled=true;btn.style.opacity='0.7';}
+  enviarSheets(v).then(()=>{
+    toast('✓ '+v.id+' registrada en Sheets');
+    if(btn){btn.style.background='#4ade80';btn.style.color='#000';btn.textContent='✓ Sheets OK';}
+  }).catch((err)=>{
+    console.error('[Sheets error]',err);
+    toast('⚠ Error Sheets: '+(err?.message||'sin conexión')+' — local OK');
+    if(btn){btn.style.background='#f87171';btn.style.color='#fff';btn.textContent='✗ Error Sheets';}
+  }).finally(()=>{
     setTimeout(()=>{
-      if(btnGuardar){btnGuardar.style.background='';btnGuardar.style.color='';btnGuardar.style.borderColor='';btnGuardar.textContent='Guardar venta';btnGuardar.disabled=false;}
-      limpiarForm();renderAll();showTab('ventas',null);
-    },2000);
-  }catch(err){
-    if(btnGuardar){btnGuardar.style.background='#f87171';btnGuardar.style.color='#fff';btnGuardar.style.borderColor='#f87171';btnGuardar.textContent='✗ Error al sincronizar';}
-    toast('⚠ Venta guardada localmente — sin conexión con Sheets');
-    setTimeout(()=>{
-      if(btnGuardar){btnGuardar.style.background='';btnGuardar.style.color='';btnGuardar.style.borderColor='';btnGuardar.textContent='Guardar venta';btnGuardar.disabled=false;}
-      limpiarForm();renderAll();showTab('ventas',null);
-    },3000);
-  }
+      if(btn){btn.style.background='';btn.style.color='';btn.style.opacity='';btn.textContent='Guardar venta';btn.disabled=false;}
+    },4000);
+  });
 }
 
 function limpiarForm(){
@@ -1514,7 +1555,10 @@ async function enviarSheets(v){
     costoEnvio: Number(v.costoEnvio||0),
     estado:     String(v.estado||'por retirar')
   };
-  try{await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows:[fila]})});}catch(e){console.error(e);}
+  const resp=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',tab:cfg.tab||'Registro de Ventas',rows:[fila]})});
+  if(!resp.ok) throw new Error('HTTP '+resp.status);
+  const txt=await resp.text();
+  console.log('[Sheets OK]',txt);
 }
 
 
@@ -1659,7 +1703,6 @@ function confirmarRetiro(id){
   }
 
   actualizarRetiroSheets(id, fecha, hora);
-  programarRec(v);
   toast('✓ Retiro agendado: '+fmtF(fecha)+' a las '+hora);
 }
 
