@@ -260,7 +260,7 @@ textarea{resize:vertical;min-height:110px;}
     </div>
   </div>
   <div class="btn-row">
-    <button class="btn btn-primary" onclick="guardarVenta()">Guardar venta</button>
+    <button class="btn btn-primary" id="btnGuardar" onclick="guardarVenta()">Guardar venta</button>
     <button class="btn btn-secondary" onclick="limpiarForm()">Limpiar</button>
   </div>
 </div>
@@ -658,7 +658,7 @@ async function guardarVenta(){
   if(!carrito.length)return toast('Agregá al menos un producto');
   const canal=document.getElementById('fCanal').value;
   if(!canal)return toast('Seleccioná el canal de venta');
-  const btnGuardar=document.querySelector('[onclick="guardarVenta()"]');
+  const btnGuardar=document.getElementById('btnGuardar');
   const envio=document.getElementById('fEnvio').value;
   const monto=carrito.reduce((a,c)=>a+c.precio*c.qty,0);
   const costoEnvio=0; // Se completa al despachar desde Pendientes
@@ -666,18 +666,24 @@ async function guardarVenta(){
   const ventas=getVentas();ventas.push(v);setVentas(ventas);
   const stock=getStock();carrito.forEach(c=>{if(stock[c.nombre]!==undefined)stock[c.nombre]=Math.max(0,stock[c.nombre]-c.qty);});setStock(stock);
   if(envio==='no'&&v.retiroFecha&&v.retiroHora)programarRec(v);
-  limpiarForm();renderAll();
-  showTab('ventas',null);
+  // Mostrar estado sync ANTES de limpiar para que el botón siga en DOM
   if(btnGuardar){btnGuardar.style.transition='all .3s';btnGuardar.textContent='⏳ Sincronizando...';btnGuardar.disabled=true;}
   try{
     await enviarSheets(v);
-    if(btnGuardar){btnGuardar.style.background='#4ade80';btnGuardar.style.color='#000';btnGuardar.style.borderColor='#4ade80';btnGuardar.textContent='✓ Sincronizado';}
-    toast('✓ '+v.id+' guardada y sincronizada con Sheets');
+    if(btnGuardar){btnGuardar.style.background='#4ade80';btnGuardar.style.color='#000';btnGuardar.style.borderColor='#4ade80';btnGuardar.textContent='✓ Sincronizado con Sheets';}
+    toast('✓ '+v.id+' guardada y sincronizada');
+    setTimeout(()=>{
+      if(btnGuardar){btnGuardar.style.background='';btnGuardar.style.color='';btnGuardar.style.borderColor='';btnGuardar.textContent='Guardar venta';btnGuardar.disabled=false;}
+      limpiarForm();renderAll();showTab('ventas',null);
+    },2000);
   }catch(err){
     if(btnGuardar){btnGuardar.style.background='#f87171';btnGuardar.style.color='#fff';btnGuardar.style.borderColor='#f87171';btnGuardar.textContent='✗ Error al sincronizar';}
-    toast('⚠ Venta guardada — sin conexión con Sheets');
+    toast('⚠ Venta guardada localmente — sin conexión con Sheets');
+    setTimeout(()=>{
+      if(btnGuardar){btnGuardar.style.background='';btnGuardar.style.color='';btnGuardar.style.borderColor='';btnGuardar.textContent='Guardar venta';btnGuardar.disabled=false;}
+      limpiarForm();renderAll();showTab('ventas',null);
+    },3000);
   }
-  setTimeout(()=>{if(btnGuardar){btnGuardar.style.background='';btnGuardar.style.color='';btnGuardar.style.borderColor='';btnGuardar.textContent='Guardar venta';btnGuardar.disabled=false;}},3500);
 }
 
 function limpiarForm(){
