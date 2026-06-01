@@ -570,13 +570,12 @@ function renderDash(){
   document.getElementById('sEnvPend').textContent=ep;
   document.getElementById('sTicket').textContent=cM?fmt(Math.round(tM/cM)):'$0';
 
-  // Gráfico: últimos 7 días pero solo dentro del mes actual
+  // Gráfico: últimos 7 días
   const bars=document.getElementById('chartBars');bars.innerHTML='';
   const dias=[];
   for(let i=6;i>=0;i--){
     const d=new Date(now);d.setDate(now.getDate()-i);
-    const iso=d.toISOString().split('T')[0];
-    if(iso>=primerMes) dias.push(iso);
+    dias.push(d.toISOString().split('T')[0]);
   }
   const maxV=Math.max(...dias.map(d=>ventas.filter(v=>v.fecha===d).reduce((a,v)=>a+v.monto,0)),1);
   dias.forEach(d=>{
