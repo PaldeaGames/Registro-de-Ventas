@@ -1280,6 +1280,16 @@ function renderPendientes(){
   const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente'||v.estado==='por retirar');
   if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si');
   if(filtroP==='retiro')pend=pend.filter(v=>v.envio==='no');
+  // Ordenar por fecha de entrega más cercana primero
+  pend.sort((a,b)=>{
+    const fa=a.retiroFecha||proxDespacho();
+    const fb=b.retiroFecha||proxDespacho();
+    if(fa!==fb) return fa<fb?-1:1;
+    // mismo día: por hora
+    const ha=a.retiroHora||'23:59';
+    const hb=b.retiroHora||'23:59';
+    return ha<hb?-1:ha>hb?1:0;
+  });
   const el=document.getElementById('pendientesList');
   if(!pend.length){el.innerHTML='<div class="empty">SIN PENDIENTES ✓</div>';return;}
   el.innerHTML=pend.map(v=>{
