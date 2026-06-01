@@ -126,11 +126,11 @@ textarea{resize:vertical;min-height:110px;}
   <div class="hdate" id="headerDate"></div>
 </header>
 <nav>
-  <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
-  <button class="tab" onclick="showTab('nueva',this)">+ Nueva Venta</button>
+  <button class="tab active" onclick="showTab('nueva',this)">+ Nueva Venta</button>
   <button class="tab" id="tab-ventas-btn" onclick="showTab('ventas',this)">Ventas</button>
   <button class="tab" onclick="showTab('pendientes',this)" id="tab-btn-pendientes">Pendientes</button>
   <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
+  <button class="tab" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
 </nav>
 <main>
@@ -1302,7 +1302,10 @@ function renderPendientes(){
           <button class="btn btn-secondary btn-sm" onclick="marcarRetirado('${v.id}')">Entregado</button>
         </div>`;
     const icon=v.envio==='si'?'&#128230;':'&#127968;';
-    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info"><h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    const estadoBadge=v.envio==='si'
+      ?`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.4);margin-bottom:6px;">&#128230; POR ENVIAR</span>`
+      :`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.4);margin-bottom:6px;">&#127968; POR ENTREGAR</span>`;
+    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
@@ -1643,16 +1646,23 @@ function eliminarVenta(id){
   if(!confirm('¿Eliminar esta venta? No se puede deshacer.'))return;
   const ventas=getVentas().filter(v=>v.id!==id);
   setVentas(ventas);
-  // Recalcular stock
-  const s=getStock();
-  const eliminada=getVentas().find(v=>v.id===id); // already filtered, recalc from scratch
-  const allVentas=ventas;
   const newStock={};
   STOCK_PACKS.forEach(p=>newStock[p]=10);
-  allVentas.forEach(v=>{if(v.items)v.items.forEach(i=>{if(newStock[i.nombre]!==undefined)newStock[i.nombre]=Math.max(0,newStock[i.nombre]-i.qty);});});
+  ventas.forEach(v=>{if(v.items)v.items.forEach(i=>{if(newStock[i.nombre]!==undefined)newStock[i.nombre]=Math.max(0,newStock[i.nombre]-i.qty);});});
   setStock(newStock);
-  toast('Venta eliminada');
+  toast('Venta eliminada — sincronizando...');
   renderAll();
+  // Sync eliminación con Sheets en background
+  eliminarSheets(id);
+}
+
+async function eliminarSheets(id){
+  const cfg=getCfg();if(!cfg.url)return;
+  try{
+    const resp=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({carpeta:'RV',accion:'eliminar',codigo:id,tab:cfg.tab||'Registro de Ventas'})});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    console.log('[Sheets] Fila eliminada:',id);
+  }catch(e){console.error('[eliminarSheets error]',e);}
 }
 
 
