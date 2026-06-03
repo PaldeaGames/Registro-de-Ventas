@@ -1258,12 +1258,12 @@ function irAVentas(periodo){
 }
 
 function irAPendientesRetiro(){
-  filtrarP('retiro',null);
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav .tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-pendientes').classList.add('active');
-  document.getElementById('tab-btn-pendientes').classList.add('active');
-  renderAll();
+  document.getElementById('tab-btn-pendientes')?.classList.add('active');
+  filtroP='retiro';
+  renderPendientes();
 }
 function irAPendientes(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -1344,7 +1344,7 @@ function renderPendientes(){
   }).join('');
 }
 
-function filtrarP(tipo,btn){filtroP=tipo;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderPendientes();}
+function filtrarP(tipo,btn){filtroP=tipo;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else{const btns=document.querySelectorAll('#tab-pendientes .filter-btn');btns.forEach(b=>{if((tipo==='retiro'&&b.textContent.trim()==='Retiros')||(tipo==='envio'&&b.textContent.trim()==='Envíos')||(tipo==='todos'&&b.textContent.trim()==='Todos'))b.classList.add('active');});}renderPendientes();}
 function proxDespacho(){const d=new Date();const day=d.getDay();let dias=day<=3?3-day:day<=5?5-day:3+(7-day);if(dias===0&&d.getHours()>=18)dias=day===3?2:7;const nd=new Date(d);nd.setDate(d.getDate()+dias);return nd.toISOString().split('T')[0];}
 
 function abrirModal(id){ventaEntregaId=id;const v=getVentas().find(v=>v.id===id);document.getElementById('modalInfo').innerHTML='<strong>'+v.cliente+'</strong> — '+(v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo);document.getElementById('modalEntrega').classList.add('open');}
