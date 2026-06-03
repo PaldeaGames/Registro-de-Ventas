@@ -443,7 +443,7 @@ const INTERESADOS_HISTORICO=[
 ];
 const PACKS_FIJOS={'Pack 55':5500,'Pack 55 + HIT':8500,'Pack 20 Holografico':5000,'Pack 20 Holografico + HIT':8000,'Pack 20 Reverse':5000,'Pack 20 Reverse + HIT':8000,'Pack 50 Entrenadores':5000,'10 cartas HIT':24990};
 const STOCK_PACKS=Object.keys(PACKS_FIJOS);
-let carrito=[],filtroV='todas',filtroP='todos',ventaEntregaId=null;
+let carrito=[],filtroV='todas',filtroP='todos',ventaEntregaId=null,prevTab=null;
 
 window.onload=()=>{
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -548,6 +548,8 @@ function setVentas(v){localStorage.setItem('pdg_ventas',JSON.stringify(v));}
 function setStock(s){localStorage.setItem('pdg_stock',JSON.stringify(s));}
 
 function showTab(id,el){
+  const cur=document.querySelector('.section.active');
+  if(cur&&cur.id!=='tab-'+id) prevTab=cur.id.replace('tab-','');
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
@@ -1270,19 +1272,25 @@ function irAVentas(periodo){
 }
 
 function irAPendientesRetiro(){
+  const cur=document.querySelector('.section.active');
+  if(cur) prevTab=cur.id.replace('tab-','');
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav .tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-pendientes').classList.add('active');
   document.getElementById('tab-btn-pendientes')?.classList.add('active');
   filtroP='retiro';
   renderPendientes();
+  renderBackBtn();
 }
 function irAPendientes(){
+  const cur=document.querySelector('.section.active');
+  if(cur) prevTab=cur.id.replace('tab-','');
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-pendientes').classList.add('active');
   document.getElementById('tab-btn-pendientes')?.classList.add('active');
   filtroP='envio';renderPendientes();
+  renderBackBtn();
 }
 
 function actCostoEnvio(id){
@@ -1313,6 +1321,33 @@ function updateBadge(){
   if(btn){const ex=btn.querySelector('.badge-count');if(ex)ex.remove();if(cnt>0){const b=document.createElement('span');b.className='badge-count';b.textContent=cnt;btn.appendChild(b);}}
 }
 
+function renderBackBtn(){
+  const existing=document.getElementById('backBtn');
+  if(existing) existing.remove();
+  if(!prevTab) return;
+  const section=document.getElementById('tab-pendientes');
+  const title=section.querySelector('.section-title');
+  const btn=document.createElement('button');
+  btn.id='backBtn';
+  btn.innerHTML='&#8592; Volver';
+  btn.className='btn btn-secondary btn-sm';
+  btn.style.cssText='margin-bottom:14px;display:inline-flex;align-items:center;gap:5px;font-size:10px;';
+  btn.onclick=goBack;
+  section.insertBefore(btn,title);
+}
+function goBack(){
+  if(!prevTab) return;
+  const dest=prevTab;
+  prevTab=null;
+  const backBtn=document.getElementById('backBtn');
+  if(backBtn) backBtn.remove();
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+dest).classList.add('active');
+  const navBtn=document.querySelector(`nav .tab[onclick*="${dest}"]`);
+  if(navBtn) navBtn.classList.add('active');
+  renderAll();
+}
 function renderPendientes(){
   const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente'||v.estado==='por retirar');
   if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si');
@@ -1352,7 +1387,8 @@ function renderPendientes(){
     const estadoBadge=v.envio==='si'
       ?`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.4);margin-bottom:6px;">&#128230; POR ENVIAR</span>`
       :`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.4);margin-bottom:6px;">&#127968; POR ENTREGAR</span>`;
-    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    const igTag=v.link&&v.link.includes('instagram')?`<a href="${v.link}" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:2px 7px;margin-left:6px;vertical-align:middle;">IG ↗</a>`:'';
+    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
