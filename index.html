@@ -25,7 +25,7 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px 80px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;}
 .card-title{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
-@media(max-width:540px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:540px){.stats-grid{grid-template-columns:repeat(2,1fr);}#dashPendientesGrid{grid-template-columns:1fr!important;}}
 .stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
 .stat-clickable{cursor:pointer;transition:border-color .2s,transform .15s;}
 .stat-clickable:hover{border-color:var(--accent);transform:translateY(-2px);}
@@ -143,11 +143,21 @@ textarea{resize:vertical;min-height:110px;}
     <div class="stat-box stat-clickable" onclick="irAVentas('mes')" title="Ver ventas de este mes"><div class="stat-label">Este mes ↗</div><div class="stat-value" id="sMes">$0</div><div class="stat-sub" id="sMesSub">0 ventas</div></div>
     <div class="stat-box stat-clickable" onclick="irAVentas('todas')" title="Ver todas las ventas"><div class="stat-label">Total histórico ↗</div><div class="stat-value" id="sTotal">$0</div><div class="stat-sub" id="sTotalSub">0 ventas</div></div>
     <div class="stat-box stat-clickable" onclick="irAPendientes()" title="Ver envíos pendientes" style="border-color:rgba(241,192,53,.3);"><div class="stat-label">Envíos pendientes ↗</div><div class="stat-value" id="sEnvPend" style="color:var(--accent2)">0</div><div class="stat-sub">por despachar</div></div>
+    <div class="stat-box stat-clickable" onclick="irAPendientesRetiro()" title="Ver retiros pendientes" style="border-color:rgba(96,165,250,.3);"><div class="stat-label">Retiros pendientes ↗</div><div class="stat-value" id="sRetPend" style="color:var(--blue)">0</div><div class="stat-sub">por retirar</div></div>
     <div class="stat-box"><div class="stat-label">Ticket promedio</div><div class="stat-value" id="sTicket">$0</div><div class="stat-sub">mes actual</div></div>
   </div>
   <div class="card"><div class="card-title">Ingresos — Últimos 7 días</div><div class="chart-wrap"><div class="chart-bars" id="chartBars"></div></div></div>
   <div class="card"><div class="card-title">Tipo más vendido</div><div id="topProd" style="font-size:14px;font-weight:500;">—</div></div>
-  <div class="card"><div class="card-title">Próximos despachos</div><div id="dashDesp"></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="dashPendientesGrid">
+    <div class="card" style="margin-bottom:0;border-color:rgba(241,192,53,.2);">
+      <div class="card-title" style="color:var(--accent2);">📦 Envíos pendientes</div>
+      <div id="dashEnvPend"></div>
+    </div>
+    <div class="card" style="margin-bottom:0;border-color:rgba(96,165,250,.2);">
+      <div class="card-title" style="color:var(--blue);">🏠 Retiros pendientes</div>
+      <div id="dashRetPend"></div>
+    </div>
+  </div>
 </div>
 
 <div class="section" id="tab-nueva">
@@ -554,13 +564,14 @@ function renderDash(){
   const primerMes=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
   const nombreMes=now.toLocaleDateString('es-CL',{month:'long'}).replace(/^\w/,c=>c.toUpperCase());
 
-  let tH=0,cH=0,tS=0,cS=0,tM=0,cM=0,tT=0,cT=0,ep=0;
+  let tH=0,cH=0,tS=0,cS=0,tM=0,cM=0,tT=0,cT=0,ep=0,rp=0;
   ventas.forEach(v=>{
     tT+=v.monto;cT++;
     if(v.fecha===hoy){tH+=v.monto;cH++;}
     if(v.fecha>=lunesFecha&&v.fecha>=primerMes){tS+=v.monto;cS++;}
     if(v.fecha>=primerMes){tM+=v.monto;cM++;}
     if(v.envio==='si'&&v.estado!=='enviado')ep++;
+    if(v.envio!=='si'&&(v.estado==='pendiente'||v.estado==='por retirar'))rp++;
   });
 
   document.getElementById('sHoy').textContent=fmt(tH);document.getElementById('sHoySub').textContent=cH+' venta'+(cH!==1?'s':'');
@@ -568,6 +579,7 @@ function renderDash(){
   document.getElementById('sMes').textContent=fmt(tM);document.getElementById('sMesSub').textContent=cM+' ventas · '+nombreMes;
   document.getElementById('sTotal').textContent=fmt(tT);document.getElementById('sTotalSub').textContent=cT+' ventas totales';
   document.getElementById('sEnvPend').textContent=ep;
+  document.getElementById('sRetPend').textContent=rp;
   document.getElementById('sTicket').textContent=cM?fmt(Math.round(tM/cM)):'$0';
 
   // Gráfico: últimos 7 días
@@ -594,9 +606,15 @@ function renderDash(){
   const topMes=Object.entries(cntMes).sort((a,b)=>b[1]-a[1])[0];
   document.getElementById('topProd').textContent=topMes?topMes[0]+' — '+topMes[1]+' ventas':'—';
 
-  const pend=ventas.filter(v=>v.estado==='pendiente').slice(0,4);
-  const dd=document.getElementById('dashDesp');
-  dd.innerHTML=pend.length?pend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>'+(v.envio==='si'?'📦':'🏠')+' <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">'+(v.ciudad||'Retiro')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:12px;">Sin despachos pendientes</div>';
+  // Envíos pendientes
+  const envPend=ventas.filter(v=>v.envio==='si'&&v.estado!=='enviado');
+  const deEnv=document.getElementById('dashEnvPend');
+  deEnv.innerHTML=envPend.length?envPend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>📦 <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--accent2);">'+( v.ciudad||'—')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin envíos pendientes</div>';
+
+  // Retiros pendientes
+  const retPend=ventas.filter(v=>v.envio!=='si'&&(v.estado==='pendiente'||v.estado==='por retirar'));
+  const deRet=document.getElementById('dashRetPend');
+  deRet.innerHTML=retPend.length?retPend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>🏠 <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--blue);">'+(v.retiroFecha?fmtF(v.retiroFecha):'Sin fecha')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin retiros pendientes</div>';
 }
 
 function toggleEnvio(){
@@ -1239,6 +1257,14 @@ function irAVentas(periodo){
   renderVentas();
 }
 
+function irAPendientesRetiro(){
+  filtrarP('retiro',null);
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-pendientes').classList.add('active');
+  document.getElementById('tab-btn-pendientes').classList.add('active');
+  renderAll();
+}
 function irAPendientes(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
