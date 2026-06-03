@@ -609,7 +609,10 @@ function renderDash(){
   // Envíos pendientes
   const envPend=ventas.filter(v=>v.envio==='si'&&v.estado!=='enviado');
   const deEnv=document.getElementById('dashEnvPend');
-  deEnv.innerHTML=envPend.length?envPend.map(v=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>📦 <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:var(--accent2);">'+( v.ciudad||'—')+' · '+fmt(v.total)+'</span></div>').join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin envíos pendientes</div>';
+  deEnv.innerHTML=envPend.length?envPend.map(v=>{
+    const igLink=v.link&&v.link.includes('instagram')?'<a href="'+v.link+'" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;margin-left:6px;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:1px 6px;">IG ↗</a>':'';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>📦 <strong>'+v.cliente+'</strong>'+igLink+'</span><span style="font-family:var(--font-mono);font-size:10px;color:var(--accent2);">'+(v.ciudad||'—')+' · '+fmt(v.total)+'</span></div>';
+  }).join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin envíos pendientes</div>';
 
   // Retiros pendientes
   const retPend=ventas.filter(v=>v.envio!=='si'&&(v.estado==='pendiente'||v.estado==='por retirar'));
@@ -621,7 +624,8 @@ function renderDash(){
     const tagHoy=esHoy?'<span style="background:var(--accent);color:#000;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;margin-left:5px;vertical-align:middle;">HOY</span>':'';
     const tagVenc=esVencido?'<span style="background:var(--red);color:#fff;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;margin-left:5px;vertical-align:middle;">VENCIDO</span>':'';
     const colorFecha=esHoy?'var(--accent)':esVencido?'var(--red)':'var(--blue)';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>🏠 <strong>'+v.cliente+'</strong></span><span style="font-family:var(--font-mono);font-size:10px;color:'+colorFecha+';">'+fechaLabel+tagHoy+tagVenc+' · '+fmt(v.total)+'</span></div>';
+    const igLinkR=v.link&&v.link.includes('instagram')?'<a href="'+v.link+'" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;margin-left:6px;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:1px 6px;">IG ↗</a>':'';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>🏠 <strong>'+v.cliente+'</strong>'+igLinkR+'</span><span style="font-family:var(--font-mono);font-size:10px;color:'+colorFecha+';">'+fechaLabel+tagHoy+tagVenc+' · '+fmt(v.total)+'</span></div>';
   }).join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin retiros pendientes</div>';
 }
 
