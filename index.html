@@ -1388,7 +1388,18 @@ function renderPendientes(){
       ?`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.4);margin-bottom:6px;">&#128230; POR ENVIAR</span>`
       :`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.4);margin-bottom:6px;">&#127968; POR ENTREGAR</span>`;
     const igTag=v.link&&v.link.includes('instagram')?`<a href="${v.link}" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:2px 7px;margin-left:6px;vertical-align:middle;">IG ↗</a>`:'';
-    return `<div class="pi"><div class="pf"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    const hoy2=new Date();hoy2.setHours(0,0,0,0);
+    const dComp=new Date(fRef+'T12:00:00');dComp.setHours(0,0,0,0);
+    const diff=Math.round((dComp-hoy2)/(1000*60*60*24));
+    let pfHTML;
+    if(diff===0){
+      pfHTML=`<div style="background:var(--accent);border-radius:8px;padding:10px 4px;text-align:center;width:56px;"><div style="font-family:var(--font-display);font-size:22px;line-height:1;color:#000;letter-spacing:2px;">HOY</div></div>`;
+    } else if(diff===1){
+      pfHTML=`<div style="background:var(--accent2);border-radius:8px;padding:8px 4px;text-align:center;width:56px;"><div style="font-family:var(--font-display);font-size:15px;line-height:1.2;color:#000;letter-spacing:1px;">MA\u00d1ANA</div></div>`;
+    } else {
+      pfHTML=`<div style="background:var(--surface2);border-radius:8px;padding:8px 4px;text-align:center;width:56px;"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div>`;
+    }
+    return `<div class="pi"><div class="pf" style="padding:0;background:none;border:none;">${pfHTML}</div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
