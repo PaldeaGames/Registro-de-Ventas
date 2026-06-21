@@ -118,6 +118,31 @@ textarea{resize:vertical;min-height:110px;}
 .sem-table td{padding:7px 10px;border-bottom:1px solid rgba(42,42,45,.4);text-align:right;font-family:var(--font-mono);font-size:11px;}
 .sem-table td:first-child{text-align:left;color:var(--text);}
 .va{color:var(--accent);}.vm2{color:var(--muted);}
+
+/* Recordatorios */
+.rv-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.rv-item-info{flex:1;}
+.rv-nombre{font-size:13px;font-weight:600;margin-bottom:3px;}
+.rv-link{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-decoration:none;display:block;margin-bottom:2px;}
+.rv-link:hover{text-decoration:underline;}
+.rv-monto{font-family:var(--font-display);font-size:18px;color:var(--accent2);}
+.rv-actions{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+.rv-btn-ok{background:none;border:1px solid rgba(200,241,53,.3);color:var(--accent);font-family:var(--font-mono);font-size:9px;letter-spacing:1px;padding:4px 9px;border-radius:6px;cursor:pointer;transition:all .2s;}
+.rv-btn-ok:hover{background:var(--accent);color:#000;}
+.rv-btn-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:16px;padding:3px 6px;transition:color .2s;}
+.rv-btn-del:hover{color:var(--red);}
+.tarea-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);transition:opacity .2s;}
+.tarea-item:last-child{border-bottom:none;}
+.tarea-check{width:18px;height:18px;border:2px solid var(--border2);border-radius:4px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.tarea-check:hover{border-color:var(--accent);}
+.tarea-check.done{background:var(--accent);border-color:var(--accent);}
+.tarea-check.done::after{content:'✓';color:#000;font-size:11px;font-weight:700;}
+.tarea-text{flex:1;font-size:13px;transition:all .2s;}
+.tarea-text.done{text-decoration:line-through;color:var(--muted2);}
+.tarea-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:15px;padding:2px 5px;transition:color .2s;opacity:0;}
+.tarea-item:hover .tarea-del{opacity:1;}
+.tarea-del:hover{color:var(--red);}
+
 </style>
 </head>
 <body>
@@ -132,6 +157,7 @@ textarea{resize:vertical;min-height:110px;}
   <button class="tab" onclick="showTab('interesados',this)">Interesados</button>
   <button class="tab" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('resumen',this)">Resumen</button>
+  <button class="tab" onclick="showTab('recordatorios',this)" id="tab-btn-recordatorios">Recordatorios <span class="badge-count" id="badgeRecordatorios" style="display:none;background:var(--accent);color:#000;"></span></button>
 </nav>
 <main>
 
@@ -328,6 +354,35 @@ textarea{resize:vertical;min-height:110px;}
   <div id="resumenContenido"></div>
 </div>
 
+
+
+<div class="section" id="tab-recordatorios">
+  <div class="section-title">RECORDATORIOS</div>
+
+  <!-- VENTAS POR INGRESAR -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-title" style="color:var(--accent2);">🛒 Ventas por ingresar</div>
+    <div class="form-grid" style="margin-bottom:12px;">
+      <div class="form-group"><label>Nombre del cliente</label><input type="text" id="rvNombre" placeholder="Ej: Carlos Gutiérrez"></div>
+      <div class="form-group"><label>Monto</label><input type="number" id="rvMonto" placeholder="Ej: 12000" min="0"></div>
+      <div class="form-group full"><label>Link / @usuario</label><input type="text" id="rvLink" placeholder="https://instagram.com/... o @usuario"></div>
+    </div>
+    <div class="btn-row" style="margin-top:0;">
+      <button class="btn btn-secondary btn-sm" onclick="agregarVentaPendiente()">+ Agregar venta</button>
+    </div>
+    <div id="ventasPendientesList" style="margin-top:16px;"></div>
+  </div>
+
+  <!-- TAREAS POR HACER -->
+  <div class="card">
+    <div class="card-title" style="color:var(--blue);">📋 Tareas por hacer</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="tareaInput" placeholder="Agregar tarea..." style="flex:1;" onkeydown="if(event.key==='Enter')agregarTarea()">
+      <button class="btn btn-secondary btn-sm" onclick="agregarTarea()" style="white-space:nowrap;">+ Agregar</button>
+    </div>
+    <div id="tareasList"></div>
+  </div>
+</div>
 
 </main>
 <div class="toast" id="toast"></div>
@@ -534,7 +589,7 @@ function resetearInformes(){
   toast('✓ Historial de informes reseteado');
 }
 
-function renderAll(){renderDash();renderVentas();renderPendientes();renderInteresados();renderResumen();updateBadge();}
+function renderAll(){renderDash();renderVentas();renderPendientes();renderInteresados();renderResumen();renderRecordatorios();updateBadge();}
 function getVentas(){return JSON.parse(localStorage.getItem('pdg_ventas')||'[]');}
 function getStock(){return JSON.parse(localStorage.getItem('pdg_stock')||'{}');}
 function getInteresados(){return JSON.parse(localStorage.getItem('pdg_interesados')||'[]');}
@@ -1853,9 +1908,110 @@ function confirmarEnvioDesdeInput(id){
 }
 
 
+
+// ── RECORDATORIOS ────────────────────────────────────────────
+function getVentasPend(){return JSON.parse(localStorage.getItem('pdg_ventas_pend')||'[]');}
+function setVentasPend(v){localStorage.setItem('pdg_ventas_pend',JSON.stringify(v));}
+function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
+function setTareas(v){localStorage.setItem('pdg_tareas',JSON.stringify(v));}
+
+function agregarVentaPendiente(){
+  const nombre=document.getElementById('rvNombre').value.trim();
+  const link=document.getElementById('rvLink').value.trim();
+  const monto=parseInt(document.getElementById('rvMonto').value)||0;
+  if(!nombre)return toast('Ingresa el nombre del cliente');
+  const vp=getVentasPend();
+  vp.unshift({id:'VP'+Date.now(),nombre,link,monto,fecha:new Date().toISOString().split('T')[0]});
+  setVentasPend(vp);
+  document.getElementById('rvNombre').value='';
+  document.getElementById('rvLink').value='';
+  document.getElementById('rvMonto').value='';
+  renderRecordatorios();
+  toast('✓ Venta anotada');
+}
+
+function eliminarVentaPendiente(id){
+  setVentasPend(getVentasPend().filter(v=>v.id!==id));
+  renderRecordatorios();
+  toast('Eliminada');
+}
+
+function pasarANuevaVenta(id){
+  const vp=getVentasPend().find(v=>v.id===id);
+  if(!vp)return;
+  document.getElementById('fNombre').value=vp.nombre||'';
+  document.getElementById('fLink').value=vp.link||'';
+  showTab('nueva',document.querySelector('.tab'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('[onclick="showTab(\'nueva\',this)"]').classList.add('active');
+  toast('✓ Datos cargados en Nueva Venta');
+  // No se elimina automáticamente — el usuario la borra cuando quiera
+}
+
+function agregarTarea(){
+  const inp=document.getElementById('tareaInput');
+  const texto=inp.value.trim();
+  if(!texto)return toast('Escribe una tarea primero');
+  const tareas=getTareas();
+  tareas.unshift({id:'T'+Date.now(),texto,done:false,fecha:new Date().toISOString().split('T')[0]});
+  setTareas(tareas);
+  inp.value='';
+  renderRecordatorios();
+}
+
+function toggleTarea(id){
+  const tareas=getTareas();
+  const t=tareas.find(t=>t.id===id);
+  if(t)t.done=!t.done;
+  setTareas(tareas);
+  renderRecordatorios();
+}
+
+function eliminarTarea(id){
+  setTareas(getTareas().filter(t=>t.id!==id));
+  renderRecordatorios();
+}
+
+function renderRecordatorios(){
+  // Ventas pendientes
+  const vp=getVentasPend();
+  const vpEl=document.getElementById('ventasPendientesList');
+  if(!vpEl)return;
+  if(!vp.length){
+    vpEl.innerHTML='<div class="empty" style="padding:20px 0;">Sin ventas por ingresar</div>';
+  } else {
+    vpEl.innerHTML=vp.map(v=>{
+      const linkHtml=v.link?'<a href="'+(v.link.startsWith('http')?v.link:'https://'+v.link)+'" target="_blank" class="rv-link">'+v.link+'</a>':'';
+      const montoHtml=v.monto?'<div class="rv-monto">'+fmt(v.monto)+'</div>':'<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">Sin monto</div>';
+      return '<div class="rv-item"><div class="rv-item-info"><div class="rv-nombre">'+v.nombre+'</div>'+linkHtml+montoHtml+'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+v.fecha+'</div></div><div class="rv-actions"><button class="rv-btn-ok" onclick="pasarANuevaVenta(\''+v.id+'\')">→ Nueva venta</button><button class="rv-btn-del" onclick="eliminarVentaPendiente(\''+v.id+'\')" title="Eliminar">×</button></div></div>';
+    }).join('');
+  }
+
+  // Tareas
+  const tareas=getTareas();
+  const tEl=document.getElementById('tareasList');
+  const pendientes=tareas.filter(t=>!t.done);
+  const hechas=tareas.filter(t=>t.done);
+  const sorted=[...pendientes,...hechas];
+  if(!sorted.length){
+    tEl.innerHTML='<div class="empty" style="padding:20px 0;">Sin tareas pendientes</div>';
+  } else {
+    tEl.innerHTML=sorted.map(t=>`<div class="tarea-item"><div class="tarea-check${t.done?' done':''}" onclick="toggleTarea('${t.id}')"></div><div class="tarea-text${t.done?' done':''}">${t.texto}</div><button class="tarea-del" onclick="eliminarTarea('${t.id}')" title="Eliminar">×</button></div>`).join('');
+  }
+
+  // Badge en tab
+  const total=vp.length+pendientes.length;
+  const badge=document.getElementById('badgeRecordatorios');
+  if(badge){
+    if(total>0){badge.textContent=total;badge.style.display='inline-block';}
+    else{badge.style.display='none';}
+  }
+}
+
 function fmt(n){return '$'+Math.round(n||0).toLocaleString('es-CL');}
 function fmtF(s){if(!s)return '';const d=new Date(s+'T12:00:00');return d.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'short'}).replace(/^\w/,c=>c.toUpperCase());}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
+
 </script>
 </body>
 </html>
