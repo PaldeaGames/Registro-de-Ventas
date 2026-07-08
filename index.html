@@ -434,19 +434,32 @@ textarea{resize:vertical;min-height:110px;}
   const _rem=localStorage.removeItem.bind(localStorage);
   let syncing=false, pushTimer=null;
 
+  // Identidad de fila para la sincronización. Se usa _uid (único por dispositivo)
+  // en vez de id, porque dos dispositivos pueden generar el mismo id visible
+  // (ej. dos ventas I0082 creadas sin haber sincronizado). Con _uid nunca se
+  // fusionan por error dos registros distintos que casualmente comparten id.
+  function uidDe(o){
+    if(o._uid)return o._uid;
+    // Si no tiene _uid pero sí id, se deriva de forma estable del id para no
+    // duplicar registros ya existentes que venían sin _uid.
+    return o.id!=null?('id:'+o.id):('x:'+Math.random().toString(36).slice(2));
+  }
   function stamp(key,val){
     if(!ARRAY_KEYS.includes(key))return val;
     try{
       const nueva=JSON.parse(val);
       let previa=[];try{previa=JSON.parse(_get(key)||'[]');}catch(e){}
-      const prevMap={};previa.forEach(o=>{if(o&&o.id!=null)prevMap[o.id]=o;});
+      const prevMap={};previa.forEach(o=>{if(o&&typeof o==='object')prevMap[uidDe(o)]=o;});
       const ahora=Date.now();
       const salida=[];
-      const idsNueva=new Set();
+      const uidsNueva=new Set();
       nueva.forEach(o=>{
         if(!o||typeof o!=='object'){salida.push(o);return;}
-        idsNueva.add(o.id);
-        const antes=prevMap[o.id];
+        // Asegurar _uid en cada registro nuevo.
+        if(!o._uid)o._uid=(o.id!=null?'id:'+o.id:'x:')+'-'+ahora.toString(36)+Math.random().toString(36).slice(2,7);
+        const u=o._uid;
+        uidsNueva.add(u);
+        const antes=prevMap[u]||prevMap['id:'+o.id];
         if(!antes||JSON.stringify(Object.assign({},antes,{_ts:0}))!==JSON.stringify(Object.assign({},o,{_ts:0}))){
           o._ts=ahora;
         }else if(antes._ts){o._ts=antes._ts;}
@@ -454,8 +467,11 @@ textarea{resize:vertical;min-height:110px;}
       });
       // Tombstones: lo que estaba antes y ya no está => marcar borrado y propagar.
       previa.forEach(o=>{
-        if(o&&o.id!=null&&!o._del&&!idsNueva.has(o.id)){
-          salida.push({id:o.id,_del:true,_ts:ahora});
+        if(o&&typeof o==='object'&&!o._del){
+          const u=uidDe(o);
+          if(!uidsNueva.has(u)&&!uidsNueva.has('id:'+o.id)){
+            salida.push({_uid:u,id:o.id,_del:true,_ts:ahora});
+          }
         }
       });
       return JSON.stringify(salida);
@@ -463,15 +479,47 @@ textarea{resize:vertical;min-height:110px;}
   }
   function mergeArr(local,remote){
     const map={};
-    (remote||[]).forEach(o=>{if(o&&o.id!=null)map[o.id]=o;});
+    (remote||[]).forEach(o=>{if(o&&typeof o==='object')map[uidDe(o)]=o;});
     (local||[]).forEach(o=>{
-      if(o&&o.id!=null){const r=map[o.id];
-        if(!r||(o._ts||0)>=(r._ts||0))map[o.id]=o;}
+      if(o&&typeof o==='object'){const u=uidDe(o);const r=map[u];
+        if(!r||(o._ts||0)>=(r._ts||0))map[u]=o;}
     });
     // Se conservan los tombstones (_del) en storage para que sigan propagándose.
     return Object.values(map);
   }
-  function mergeObj(local,remote){return Object.assign({},remote||{},local||{});}
+  function mergeObj(local,remote){
+    // Para pdg_stock (contadores): ante conflicto se toma el MENOR valor por
+    // producto, para no "resucitar" stock que otro dispositivo ya descontó al
+    // vender. Es la opción conservadora y segura para inventario.
+    const out=Object.assign({},remote||{},local||{});
+    const l=local||{},r=remote||{};
+    Object.keys(out).forEach(k=>{
+      if(typeof l[k]==='number'&&typeof r[k]==='number')out[k]=Math.min(l[k],r[k]);
+    });
+    return out;
+  }
+
+  // ¿El usuario está interactuando ahora? (input enfocado, calendario abierto, etc.)
+  // Si es así, NO se redibuja la pantalla: se pospone para no borrar lo que edita.
+  let ultimaInteraccion=0;
+  ['focusin','input','change','keydown','pointerdown'].forEach(ev=>{
+    document.addEventListener(ev,e=>{
+      const t=e.target,tag=(t&&t.tagName||'').toLowerCase();
+      if(tag==='input'||tag==='select'||tag==='textarea'||(t&&t.isContentEditable))ultimaInteraccion=Date.now();
+    },true);
+  });
+  function usuarioEditando(){
+    // Ventana de gracia: 3s tras tocar/editar un campo (cubre el datepicker móvil,
+    // donde el foco no siempre se reporta bien mientras el calendario está abierto).
+    if(Date.now()-ultimaInteraccion<3000)return true;
+    const a=document.activeElement;
+    if(a){
+      const tag=(a.tagName||'').toLowerCase();
+      if(tag==='input'||tag==='select'||tag==='textarea'||a.isContentEditable)return true;
+    }
+    if(document.querySelector('.modal.active,.modal[style*="display: flex"],.modal[style*="display:flex"]'))return true;
+    return false;
+  }
 
   async function pull(){
     try{
@@ -480,6 +528,7 @@ textarea{resize:vertical;min-height:110px;}
       const rows=await r.json();
       const server={};rows.forEach(x=>server[x.key]=x.value);
       syncing=true;
+      let cambio=false;
       SYNC_KEYS.forEach(key=>{
         const localRaw=_get(key);
         if(server[key]===undefined)return; // no en la nube: conserva lo local
@@ -491,11 +540,16 @@ textarea{resize:vertical;min-height:110px;}
           const local=localRaw?JSON.parse(localRaw):{};
           merged=mergeObj(local,server[key]);
         }
-        _set(key,JSON.stringify(merged));
+        const nuevoRaw=JSON.stringify(merged);
+        if(nuevoRaw!==localRaw){_set(key,nuevoRaw);cambio=true;}
       });
       syncing=false;
-      if(window.renderAll)try{renderAll();}catch(e){}
       setOnline(true);
+      // Redibujar SOLO si hubo cambios reales Y el usuario no está editando.
+      if(cambio){
+        if(usuarioEditando()){clearTimeout(pull._retry);pull._retry=setTimeout(pull,2000);}
+        else if(window.renderAll){try{renderAll();}catch(e){}}
+      }
     }catch(e){setOnline(false);}
   }
   async function push(){
@@ -828,7 +882,7 @@ function agregarItemManual(){
 
 function generarCodigo(canal){
   const prefix=canal==='Instagram'?'I':canal==='Página Facebook'?'F':canal==='Messenger'?'M':'O';
-  const todas=[...getVentas(),...HISTORICO];
+  const todas=[...getVentas()];
   const existentes=todas.filter(v=>v.id&&v.id.startsWith(prefix)).map(v=>parseInt(v.id.slice(1))||0);
   return prefix+(Math.max(0,...existentes)+1).toString().padStart(4,'0');
 }
