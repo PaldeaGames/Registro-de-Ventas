@@ -416,61 +416,107 @@ textarea{resize:vertical;min-height:110px;}
 </div>
 
 <script>
-const HISTORICO=[
-{id:'I0001',fecha:'2026-04-23',cliente:'Sebastián Madrid',canal:'Instagram',link:'https://www.instagram.com/sebastian_a_madrid/',tipo:'Otro',desc:'Chayas mal estado +770 $35.000 y Blaziken',monto:55000,envio:'si',empresa:'Starken',ciudad:'Coltauco',costoEnvio:13640,total:68640,estado:'enviado'},
-{id:'I0002',fecha:'2026-04-23',cliente:'Sebastián Aguila',canal:'Instagram',link:'https://www.instagram.com/_se',tipo:'Pack Meta',desc:'Arboliva y Familia',monto:5500,envio:'no',costoEnvio:0,total:5500,estado:'entregado'},
-{id:'I0003',fecha:'2026-04-23',cliente:'Ignacio Cortés',canal:'Instagram',link:'https://www.instagram.com/nac',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
-{id:'O0001',fecha:'2026-04-23',cliente:'Kevin',canal:'Otro',link:'https://www.instagram.com/darklight.poytcg',tipo:'Hits',desc:'Charizard GX Hidden Fates CardFest',monto:320000,envio:'no',costoEnvio:0,total:320000,estado:'entregado'},
-{id:'I0004',fecha:'2026-04-23',cliente:'Luis Morales',canal:'Instagram',link:'https://www.instagram.com/avmz_bizkit/',tipo:'Ilustradores',desc:'Gran cantidad de Yuka Morii',monto:50000,envio:'si',empresa:'Starken',ciudad:'Quilicura, Santiago',costoEnvio:3410,total:53410,estado:'enviado'},
-{id:'I0005',fecha:'2026-04-23',cliente:'Sabrina Améstica',canal:'Instagram',link:'https://www.instagram.com/xvl__5/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Barnechea, Santiago',costoEnvio:3410,total:8910,estado:'enviado'},
-{id:'I0006',fecha:'2026-04-23',cliente:'Gabriel Varela',canal:'Instagram',link:'https://www.instagram.com/gab02217',tipo:'Otro',desc:'Dragonite Holo set MEW',monto:1000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:5990,estado:'enviado'},
-{id:'I0007',fecha:'2026-04-23',cliente:'Catalina',canal:'Instagram',link:'https://www.instagram.com/23_11.jpg',tipo:'Ilustradores',desc:'Fan de Asako, faltan: Electrode, audino, Altaria y otro',monto:20000,envio:'no',costoEnvio:0,total:20000,estado:'entregado'},
-{id:'F0001',fecha:'2026-04-23',cliente:'Sebastián Sagredo',canal:'Página Facebook',link:'https://www.facebook.com/sebastardo666',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Cerro Navia',costoEnvio:3590,total:9090,estado:'enviado'},
-{id:'I0008',fecha:'2026-04-23',cliente:'Aníbal Vasquez',canal:'Instagram',link:'https://www.instagram.com/alvaronicolas',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
-{id:'I0009',fecha:'2026-04-23',cliente:'María Cristina Rosa',canal:'Instagram',link:'https://www.instagram.com/mariacristina.rag/',tipo:'Ilustradores',desc:'Muchas cosas',monto:28000,envio:'si',empresa:'Starken',ciudad:'Copiapo',costoEnvio:4990,total:32990,estado:'enviado'},
-{id:'I0010',fecha:'2026-04-23',cliente:'Pablo Flores',canal:'Instagram',link:'https://www.instagram.com/pabloasinoma',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],desc:'2 packs 55 + 1 caja etb Charizard',monto:12000,envio:'no',costoEnvio:0,total:12000,estado:'entregado'},
-{id:'I0011',fecha:'2026-04-23',cliente:'Mauricio Nacarte',canal:'Instagram',link:'https://www.instagram.com/mauu9.99/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],monto:5500,envio:'si',empresa:'Starken',ciudad:'Los Andes',costoEnvio:4990,total:10490,estado:'enviado'},
-{id:'I0012',fecha:'2026-04-23',cliente:'Alonso Muñoz',canal:'Instagram',link:'https://www.instagram.com/kain.alonso',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:4}],monto:22000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:26990,estado:'enviado'},
-{id:'I0013',fecha:'2026-04-23',cliente:'Víctor Riveros',canal:'Instagram',link:'https://www.instagram.com/vito_mrc',tipo:'Otro',desc:'Booster Falsekemon',monto:29990,envio:'no',costoEnvio:0,total:29990,estado:'entregado'},
-{id:'I0014',fecha:'2026-04-23',cliente:'Jorge Rodríguez',canal:'Instagram',link:'https://www.instagram.com/jrodriguez.forne',tipo:'Cajas vacías',desc:'2 cajas vacias + Pikachu Base Set 2',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
-{id:'I0015',fecha:'2026-04-23',cliente:'Kevin Córdova',canal:'Instagram',link:'https://www.instagram.com/fake.gif/',tipo:'Otro',desc:'Jigglypuff + tandemaus',monto:2500,envio:'no',costoEnvio:0,total:2500,estado:'entregado'},
-{id:'I0016',fecha:'2026-04-23',cliente:'Alvaro Opazo',canal:'Instagram',link:'https://www.instagram.com/alvaropazo_/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
-{id:'I0017',fecha:'2026-04-23',cliente:'Marcos Bizama',canal:'Instagram',link:'https://www.instagram.com/bizamaimportaciones/',tipo:'Pack Meta',desc:'Mega Garde + otros antiguos',monto:20000,envio:'si',empresa:'Starken',ciudad:'Viña del Mar',costoEnvio:4990,total:24990,estado:'enviado'},
-{id:'I0018',fecha:'2026-04-23',cliente:'Matías Saez',canal:'Instagram',link:'https://www.instagram.com/matias.saez/',tipo:'Entrenadores',desc:'paldean student, atticus, ortega, clive, hilda (Todos FA)',monto:28000,envio:'si',empresa:'Starken',ciudad:'San Miguel',costoEnvio:3590,total:31590,estado:'enviado'},
-{id:'I0019',fecha:'2026-04-23',cliente:'Ignacio Dabadie',canal:'Instagram',link:'https://www.instagram.com/nacho.dabadie/',tipo:'Pack Meta',desc:'pack inicial de juego',monto:9000,envio:'no',costoEnvio:0,total:9000,estado:'entregado'},
-{id:'I0020',fecha:'2026-04-28',cliente:'Thomas Brad',canal:'Instagram',link:'https://www.instagram.com/brad.oh/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
-{id:'I0021',fecha:'2026-04-29',cliente:'Ignacio Dabadie',canal:'Instagram',link:'https://www.instagram.com/nacho.dabadie/',tipo:'Pack 20 Holografico',items:[{nombre:'Pack 20 Holografico',precio:5000,qty:1}],desc:'2 packs Entrenadores + 2 cajas ETBS + 1 pack Holo con Hit',monto:20000,envio:'no',costoEnvio:0,total:20000,estado:'entregado'},
-{id:'M0001',fecha:'2026-04-29',cliente:'Felipe Valdebenito',canal:'Messenger',link:'https://www.facebook.com/Pipe.Omar/',tipo:'Hits',desc:'Fanatico de Eevees, le faltan 20',monto:36000,envio:'no',costoEnvio:0,total:36000,estado:'entregado'},
-{id:'I0022',fecha:'2026-04-29',cliente:'Matias Fuentes',canal:'Instagram',link:'https://www.instagram.com/mati.fonts/',tipo:'Otro',desc:'Fan de Slowpokes + 1 pack de solo Hits',monto:55990,envio:'no',costoEnvio:0,total:55990,estado:'entregado'},
-{id:'I0023',fecha:'2026-04-30',cliente:'Andrés Toro',canal:'Instagram',link:'https://www.instagram.com/patriciofagerston/',tipo:'Otro',desc:'Pack Plasma',monto:28000,envio:'no',costoEnvio:0,total:28000,estado:'entregado'},
-{id:'I0024',fecha:'2026-04-30',cliente:'Juan Pablo',canal:'Instagram',link:'https://www.instagram.com/juvmpi/',tipo:'Otro',desc:'1 pack 55+ 1 pack Holo Hit',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
-{id:'I0025',fecha:'2026-04-30',cliente:'Antonio Pavez',canal:'Instagram',link:'https://www.instagram.com/antojebus/',tipo:'Pack Meta',desc:'4 dunsparce lanas normal + 4 reverse',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
-{id:'I0026',fecha:'2026-04-30',cliente:'Lori Saenz',canal:'Instagram',link:'https://www.instagram.com/lorisaenz/',tipo:'Pack Meta',desc:'Energías Legacy + Ignicion',monto:10500,envio:'si',empresa:'Starken',ciudad:'Iquique',costoEnvio:7910,total:18410,estado:'enviado'},
-{id:'I0027',fecha:'2026-04-30',cliente:'Samuel Jofre',canal:'Instagram',link:'https://www.instagram.com/samuel.andres_jh/',tipo:'Pack Meta',desc:'Mega Garde + Hypno reverse 151',monto:10500,envio:'si',empresa:'Starken',ciudad:'Talcahuano',costoEnvio:5240,total:15740,estado:'enviado'},
-{id:'O0002',fecha:'2026-05-02',cliente:'Herman Hoffman',canal:'Otro',link:'56950146487',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],desc:'Pack 55 + Hit',monto:8500,envio:'si',empresa:'Starken',ciudad:'La Florida',costoEnvio:3480,total:11980,estado:'enviado'},
-{id:'I0028',fecha:'2026-05-02',cliente:'Marco Olivares',canal:'Instagram',link:'https://www.instagram.com/tallermanosyvetas/',tipo:'Pack Meta',desc:'Machamp y otros',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
-{id:'I0029',fecha:'2026-05-02',cliente:'Carlos Troncoso',canal:'Instagram',link:'https://www.instagram.com/orpheedelira/',tipo:'Otro',desc:'Comision venta UPC Victor, Comprador Fuerte',monto:25000,envio:'no',costoEnvio:0,total:25000,estado:'entregado'},
-{id:'I0030',fecha:'2026-05-04',cliente:'Diego Mendez',canal:'Instagram',link:'https://www.instagram.com/diego.mendez.b/',tipo:'Otro',desc:'treckos',monto:10000,envio:'no',costoEnvio:0,total:10000,estado:'entregado'},
-{id:'M0002',fecha:'2026-05-04',cliente:'Ignacio Olivares',canal:'Messenger',link:'Vaib Check',tipo:'Otro',desc:'Comision UPC Venta',monto:25000,envio:'no',costoEnvio:0,total:25000,estado:'entregado'},
-{id:'I0031',fecha:'2026-05-04',cliente:'Gladys Leon',canal:'Instagram',link:'https://www.instagram.com/itswaifu_gl/',tipo:'Otro',desc:'Pika Gen + Kangaskhans',monto:11000,envio:'no',costoEnvio:0,total:11000,estado:'entregado'},
-{id:'I0032',fecha:'2026-05-04',cliente:'Andrés Carrasco Hernández',canal:'Instagram',link:'https://www.instagram.com/andres.ignacioc/',tipo:'Otro',monto:14500,envio:'si',empresa:'Starken',ciudad:'Valdivia',costoEnvio:4880,total:19380,estado:'enviado'},
-{id:'I0033',fecha:'2026-05-04',cliente:'Francisco Cassi',canal:'Instagram',link:'https://www.instagram.com/paaancho.16/',tipo:'Pokédex',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
-{id:'I0034',fecha:'2026-05-04',cliente:'Luis Rojas',canal:'Instagram',link:'https://www.instagram.com/luistache/',tipo:'Pokédex',monto:13000,envio:'no',costoEnvio:0,total:13000,estado:'entregado'},
-{id:'I0035',fecha:'2026-05-05',cliente:'Miguel Jopia',canal:'Instagram',link:'https://www.instagram.com/mjopia/',tipo:'Otro',monto:66000,envio:'si',empresa:'Starken',ciudad:'Antofagasta',costoEnvio:6330,total:72330,estado:'enviado'},
-{id:'O0003',fecha:'2026-05-06',cliente:'Herman Hoffmann',canal:'Otro',link:'56950146487',tipo:'Pack 20 Reverse',items:[{nombre:'Pack 20 Reverse',precio:5000,qty:1}],desc:'1 pack reverse + Hit y 1 pack Holografico + Hit',monto:16000,envio:'no',costoEnvio:0,total:16000,estado:'entregado'},
-{id:'I0036',fecha:'2026-05-07',cliente:'Ximena Carvallo',canal:'Instagram',link:'https://www.instagram.com/astralkatze/',tipo:'Otro',desc:'Gusanos y delta Dratini',monto:10500,envio:'no',costoEnvio:0,total:10500,estado:'entregado'},
-{id:'I0037',fecha:'2026-05-07',cliente:'Tomás Sanchez',canal:'Instagram',link:'https://www.instagram.com/tomasmadarsan/',tipo:'Otro',desc:'Monitos antiguos chayas',monto:3000,envio:'si',costoEnvio:4750,total:7750,estado:'enviado'},
-{id:'I0038',fecha:'2026-05-08',cliente:'Fernanda Villarroel',canal:'Instagram',link:'https://www.instagram.com/fervillarroelg/',tipo:'Otro',desc:'Lillipups y evos',monto:2000,envio:'no',costoEnvio:0,total:2000,estado:'entregado'},
-{id:'I0039',fecha:'2026-05-08',cliente:'Sebastian Benalcazar',canal:'Instagram',link:'https://www.instagram.com/sebastianx99/',tipo:'Ilustradores',desc:'Sachiko Adachi',monto:14000,envio:'si',empresa:'Starken',ciudad:'Valparaíso',costoEnvio:4990,total:18990,estado:'enviado'},
-{id:'I0040',fecha:'2026-05-11',cliente:'Rafael Antonio',canal:'Instagram',link:'https://www.instagram.com/rgmaderero/',tipo:'Pokédex',desc:'Solo Gyarados: Magesty + Go + 151',monto:12000,envio:'no',costoEnvio:0,total:12000,estado:'entregado'},
-{id:'I0041',fecha:'2026-05-12',cliente:'Luis Rojas',canal:'Instagram',link:'https://www.instagram.com/luistache/',tipo:'Otro',desc:'Cleffa 151, busca cutes',monto:6000,envio:'no',costoEnvio:0,total:6000,estado:'entregado'},
-{id:'I0042',fecha:'2026-05-12',cliente:'Claudio Bachmann',canal:'Instagram',link:'https://www.instagram.com/bachmannclaudio/',tipo:'Otro',desc:'151 reverses',monto:24000,envio:'no',costoEnvio:0,total:24000,estado:'entregado'},
-{id:'I0043',fecha:'2026-05-15',cliente:'Cesar Aguilar',canal:'Instagram',link:'https://www.instagram.com/csardvid_/',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:2}],monto:11000,envio:'si',empresa:'Starken',ciudad:'Coronel',costoEnvio:4990,total:15990,estado:'enviado'},
-{id:'I0044',fecha:'2026-05-15',cliente:'nan',canal:'Instagram',link:'https://www.instagram.com/maizorito_/',tipo:'Pokédex',desc:'Cyndas antiguois',monto:7000,envio:'no',costoEnvio:0,total:7000,estado:'entregado'},
-{id:'O0004',fecha:'2026-05-15',cliente:'Conrado Gómez',canal:'Otro',link:'snes_mon',tipo:'Pack 55',items:[{nombre:'Pack 55',precio:5500,qty:1}],desc:'1 pack 55 + 20 holos',monto:10500,envio:'no',costoEnvio:0,total:10500,estado:'entregado'},
-{id:'I0045',fecha:'2026-05-19',cliente:'Ignacio Velasquez',canal:'Instagram',link:'https://www.instagram.com/oddity_iv/',tipo:'Pokédex',desc:'Muchas',monto:32000,envio:'si',costoEnvio:3590,total:35590,estado:'enviado'},
-{id:'I0046',fecha:'2026-05-19',cliente:'Kevin Ares Ponce',canal:'Instagram',link:'https://www.instagram.com/aris_ponce/',tipo:'Otro',desc:'Rapidash + Noctwol. Por ver retiro.',monto:3000,envio:'no',costoEnvio:0,total:3000,estado:'pendiente'}
-];
+/* ══════════ SINCRONIZACIÓN EN LA NUBE (Supabase) ══════════
+   Los datos viven en Supabase, no en la PC. Se abre desde cualquier
+   dispositivo (GitHub o local) y todo queda sincronizado.
+   Intercepta localStorage (claves pdg_*): cada cambio sube a la nube con
+   merge por id; polling cada 4s trae cambios de otros dispositivos. */
+(function(){
+  const SB_URL='https://gfwclvuypricijlbeotg.supabase.co';
+  const SB_KEY='sb_publishable__psbK5iqLNfk4Mc-q3ZYiA__SZ46AzV';
+  const REST=SB_URL+'/rest/v1/pdg_data';
+  const HDR={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
+
+  const SYNC_KEYS=['pdg_ventas','pdg_stock','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
+  const ARRAY_KEYS=['pdg_ventas','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
+  const _get=localStorage.getItem.bind(localStorage);
+  const _set=localStorage.setItem.bind(localStorage);
+  const _rem=localStorage.removeItem.bind(localStorage);
+  let syncing=false, pushTimer=null;
+
+  function stamp(key,val){
+    if(ARRAY_KEYS.includes(key)){
+      try{const a=JSON.parse(val);a.forEach(o=>{if(o&&typeof o==='object')o._ts=Date.now();});return JSON.stringify(a);}catch(e){return val;}
+    }
+    return val;
+  }
+  function mergeArr(local,remote){
+    const map={};
+    (remote||[]).forEach(o=>{if(o&&o.id!=null)map[o.id]=o;});
+    (local||[]).forEach(o=>{
+      if(o&&o.id!=null){const r=map[o.id];
+        if(!r||(o._ts||0)>=(r._ts||0))map[o.id]=o;}
+    });
+    return Object.values(map).filter(o=>!o._del);
+  }
+  function mergeObj(local,remote){return Object.assign({},remote||{},local||{});}
+
+  async function pull(){
+    try{
+      const r=await fetch(REST+'?select=key,value',{headers:HDR,cache:'no-store'});
+      if(!r.ok)throw 0;
+      const rows=await r.json();
+      const server={};rows.forEach(x=>server[x.key]=x.value);
+      syncing=true;
+      SYNC_KEYS.forEach(key=>{
+        const localRaw=_get(key);
+        if(server[key]===undefined)return; // no en la nube: conserva lo local
+        let merged;
+        if(ARRAY_KEYS.includes(key)){
+          const local=localRaw?JSON.parse(localRaw):[];
+          merged=mergeArr(local,server[key]);
+        }else{
+          const local=localRaw?JSON.parse(localRaw):{};
+          merged=mergeObj(local,server[key]);
+        }
+        _set(key,JSON.stringify(merged));
+      });
+      syncing=false;
+      if(window.renderAll)try{renderAll();}catch(e){}
+      setOnline(true);
+    }catch(e){setOnline(false);}
+  }
+  async function push(){
+    const rows=[];
+    SYNC_KEYS.forEach(k=>{const v=_get(k);if(v!=null)rows.push({key:k,value:JSON.parse(v)});});
+    if(!rows.length)return;
+    try{
+      const r=await fetch(REST,{
+        method:'POST',
+        headers:Object.assign({},HDR,{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+        body:JSON.stringify(rows)
+      });
+      if(!r.ok)throw 0;
+      setOnline(true);
+    }catch(e){setOnline(false);}
+  }
+  function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>push().then(pull),400);}
+
+  localStorage.setItem=function(key,val){
+    if(SYNC_KEYS.includes(key))val=stamp(key,val);
+    _set(key,val);
+    if(!syncing&&SYNC_KEYS.includes(key))schedulePush();
+  };
+  localStorage.removeItem=function(key){
+    _rem(key);
+    if(!syncing&&SYNC_KEYS.includes(key))schedulePush();
+  };
+
+  function setOnline(ok){
+    let el=document.getElementById('syncDot');
+    if(!el){el=document.createElement('div');el.id='syncDot';
+      el.style.cssText='position:fixed;top:8px;right:8px;width:11px;height:11px;border-radius:50%;z-index:99999;box-shadow:0 0 4px rgba(0,0,0,.4);transition:background .3s';
+      el.title='Sincronización con la nube';if(document.body)document.body.appendChild(el);}
+    el.style.background=ok?'#2ecc71':'#e74c3c';
+  }
+
+  // Arranque: sube lo local (siembra tus datos reales), baja y hace merge, y arranca polling.
+  window.addEventListener('DOMContentLoaded',()=>{
+    push().then(pull).then(()=>{setInterval(pull,4000);});
+  });
+})();
+
+const HISTORICO=[];
 
 
 const INTERESADOS_HISTORICO=[
