@@ -435,10 +435,31 @@ textarea{resize:vertical;min-height:110px;}
   let syncing=false, pushTimer=null;
 
   function stamp(key,val){
-    if(ARRAY_KEYS.includes(key)){
-      try{const a=JSON.parse(val);a.forEach(o=>{if(o&&typeof o==='object')o._ts=Date.now();});return JSON.stringify(a);}catch(e){return val;}
-    }
-    return val;
+    if(!ARRAY_KEYS.includes(key))return val;
+    try{
+      const nueva=JSON.parse(val);
+      let previa=[];try{previa=JSON.parse(_get(key)||'[]');}catch(e){}
+      const prevMap={};previa.forEach(o=>{if(o&&o.id!=null)prevMap[o.id]=o;});
+      const ahora=Date.now();
+      const salida=[];
+      const idsNueva=new Set();
+      nueva.forEach(o=>{
+        if(!o||typeof o!=='object'){salida.push(o);return;}
+        idsNueva.add(o.id);
+        const antes=prevMap[o.id];
+        if(!antes||JSON.stringify(Object.assign({},antes,{_ts:0}))!==JSON.stringify(Object.assign({},o,{_ts:0}))){
+          o._ts=ahora;
+        }else if(antes._ts){o._ts=antes._ts;}
+        salida.push(o);
+      });
+      // Tombstones: lo que estaba antes y ya no está => marcar borrado y propagar.
+      previa.forEach(o=>{
+        if(o&&o.id!=null&&!o._del&&!idsNueva.has(o.id)){
+          salida.push({id:o.id,_del:true,_ts:ahora});
+        }
+      });
+      return JSON.stringify(salida);
+    }catch(e){return val;}
   }
   function mergeArr(local,remote){
     const map={};
@@ -447,7 +468,8 @@ textarea{resize:vertical;min-height:110px;}
       if(o&&o.id!=null){const r=map[o.id];
         if(!r||(o._ts||0)>=(r._ts||0))map[o.id]=o;}
     });
-    return Object.values(map).filter(o=>!o._del);
+    // Se conservan los tombstones (_del) en storage para que sigan propagándose.
+    return Object.values(map);
   }
   function mergeObj(local,remote){return Object.assign({},remote||{},local||{});}
 
@@ -491,6 +513,15 @@ textarea{resize:vertical;min-height:110px;}
     }catch(e){setOnline(false);}
   }
   function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>push().then(pull),400);}
+
+  // La app no debe ver los tombstones: al leer un array, se filtran los _del.
+  localStorage.getItem=function(key){
+    const raw=_get(key);
+    if(ARRAY_KEYS.includes(key)&&raw){
+      try{const a=JSON.parse(raw);if(Array.isArray(a))return JSON.stringify(a.filter(o=>!(o&&o._del)));}catch(e){}
+    }
+    return raw;
+  };
 
   localStorage.setItem=function(key,val){
     if(SYNC_KEYS.includes(key))val=stamp(key,val);
