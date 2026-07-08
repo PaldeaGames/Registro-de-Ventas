@@ -557,6 +557,29 @@ textarea{resize:vertical;min-height:110px;}
     SYNC_KEYS.forEach(k=>{const v=_get(k);if(v!=null)rows.push({key:k,value:JSON.parse(v)});});
     if(!rows.length)return;
     try{
+      // PROTECCIÓN ANTI-BORRADO MASIVO: antes de subir, se compara cuántos registros
+      // (contando tombstones) hay en la nube vs. lo que se va a subir. Si el push
+      // redujera drásticamente la nube (p.ej. de 100 a 2), se BLOQUEA: es señal de un
+      // dispositivo con datos incompletos, no de un borrado legítimo (que es de a uno).
+      try{
+        const chk=await fetch(REST+'?select=key,value',{headers:HDR,cache:'no-store'});
+        if(chk.ok){
+          const srv={};(await chk.json()).forEach(x=>srv[x.key]=x.value);
+          for(const row of rows){
+            if(!ARRAY_KEYS.includes(row.key))continue;
+            const nube=Array.isArray(srv[row.key])?srv[row.key].length:0;
+            const local=Array.isArray(row.value)?row.value.length:0;
+            // Si la nube tiene >=10 y subiríamos menos de la mitad, es sospechoso.
+            if(nube>=10 && local < nube/2){
+              setOnline(false);
+              console.warn('[sync] Push bloqueado: '+row.key+' nube='+nube+' local='+local+'. Posible dato incompleto; no se sobrescribe la nube.');
+              if(!window.__syncAviso){window.__syncAviso=true;
+                try{alert('⚠ Sincronización pausada por seguridad.\n\nEste dispositivo tiene MENOS datos ('+local+') que la nube ('+nube+') en "'+row.key+'". Para no borrar datos, no se subió nada.\n\nAbre la página en el dispositivo que SÍ tiene todos los datos, o recarga esta página para bajar los datos de la nube.');}catch(e){}}
+              return; // aborta el push completo
+            }
+          }
+        }
+      }catch(e){/* si falla la verificación, continúa con el push normal */}
       const r=await fetch(REST,{
         method:'POST',
         headers:Object.assign({},HDR,{'Prefer':'resolution=merge-duplicates,return=minimal'}),
@@ -595,9 +618,13 @@ textarea{resize:vertical;min-height:110px;}
     el.style.background=ok?'#2ecc71':'#e74c3c';
   }
 
-  // Arranque: sube lo local (siembra tus datos reales), baja y hace merge, y arranca polling.
+  // Arranque SEGURO: primero BAJAR de la nube (pull) y hacer merge, y solo
+  // DESPUÉS subir (push). Así un dispositivo con localStorage incompleto o viejo
+  // primero recibe los datos buenos de la nube antes de aportar los suyos, y no
+  // puede "pisar" la nube reduciéndola. (Antes se hacía push->pull, y eso permitió
+  // que un dispositivo con pocas ventas sobrescribiera la nube completa.)
   window.addEventListener('DOMContentLoaded',()=>{
-    push().then(pull).then(()=>{setInterval(pull,4000);});
+    pull().then(push).then(()=>{setInterval(pull,4000);});
   });
 })();
 
@@ -1584,7 +1611,7 @@ function renderPendientes(){
       :`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
           <input type="date" id="rf_${v.id}" value="${v.retiroFecha||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
           <input type="time" id="rh_${v.id}" value="${v.retiroHora||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
-          <button class="btn btn-primary btn-sm" onclick="confirmarRetiro('${v.id}')">&#10003; Confirmar retiro</button>
+          <button class="btn btn-primary btn-sm" onclick="confirmarRetiro('${v.id}')">&#10003; Confirmar día y hora</button>
           <button class="btn btn-secondary btn-sm" onclick="marcarRetirado('${v.id}')">Entregado</button>
         </div>`;
     const icon=v.envio==='si'?'&#128230;':'&#127968;';
