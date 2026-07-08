@@ -429,21 +429,25 @@ textarea{resize:vertical;min-height:110px;}
 
   const SYNC_KEYS=['pdg_ventas','pdg_stock','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
   const ARRAY_KEYS=['pdg_ventas','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
+  const DEL_KEY='pdg_deleted'; // registro explícito de borrados: { uid: ts }
   const _get=localStorage.getItem.bind(localStorage);
   const _set=localStorage.setItem.bind(localStorage);
   const _rem=localStorage.removeItem.bind(localStorage);
-  let syncing=false, pushTimer=null;
+  let syncing=false, pushTimer=null, syncLock=false;
 
-  // Identidad de fila para la sincronización. Se usa _uid (único por dispositivo)
-  // en vez de id, porque dos dispositivos pueden generar el mismo id visible
-  // (ej. dos ventas I0082 creadas sin haber sincronizado). Con _uid nunca se
-  // fusionan por error dos registros distintos que casualmente comparten id.
+  // Identidad DETERMINISTA por id: misma venta => misma identidad en todos los
+  // dispositivos y pestañas. Evita duplicados. Solo registros sin id usan _uid.
   function uidDe(o){
+    if(o.id!=null&&o.id!=='')return 'id:'+o.id;
     if(o._uid)return o._uid;
-    // Si no tiene _uid pero sí id, se deriva de forma estable del id para no
-    // duplicar registros ya existentes que venían sin _uid.
-    return o.id!=null?('id:'+o.id):('x:'+Math.random().toString(36).slice(2));
+    return 'x:'+Math.random().toString(36).slice(2);
   }
+  function getDeleted(){try{return JSON.parse(_get(DEL_KEY)||'{}');}catch(e){return {};}}
+  function setDeleted(d){_set(DEL_KEY,JSON.stringify(d));}
+
+  // stamp: al guardar una lista, (a) sella _ts en lo que cambió, (b) detecta lo que
+  // desapareció respecto a la lista previa y lo anota en el registro de borrados.
+  // El registro de borrados es la ÚNICA autoridad sobre qué está eliminado.
   function stamp(key,val){
     if(!ARRAY_KEYS.includes(key))return val;
     try{
@@ -451,51 +455,60 @@ textarea{resize:vertical;min-height:110px;}
       let previa=[];try{previa=JSON.parse(_get(key)||'[]');}catch(e){}
       const prevMap={};previa.forEach(o=>{if(o&&typeof o==='object')prevMap[uidDe(o)]=o;});
       const ahora=Date.now();
-      const salida=[];
       const uidsNueva=new Set();
       nueva.forEach(o=>{
-        if(!o||typeof o!=='object'){salida.push(o);return;}
-        // Asegurar _uid en cada registro nuevo.
-        if(!o._uid)o._uid=(o.id!=null?'id:'+o.id:'x:')+'-'+ahora.toString(36)+Math.random().toString(36).slice(2,7);
-        const u=o._uid;
-        uidsNueva.add(u);
-        const antes=prevMap[u]||prevMap['id:'+o.id];
-        if(!antes||JSON.stringify(Object.assign({},antes,{_ts:0}))!==JSON.stringify(Object.assign({},o,{_ts:0}))){
-          o._ts=ahora;
-        }else if(antes._ts){o._ts=antes._ts;}
-        salida.push(o);
+        if(!o||typeof o!=='object')return;
+        if((o.id==null||o.id==='')&&!o._uid)o._uid='x:'+ahora.toString(36)+Math.random().toString(36).slice(2,7);
+        const u=uidDe(o);uidsNueva.add(u);
+        const antes=prevMap[u];
+        if(!antes||JSON.stringify(Object.assign({},antes,{_ts:0}))!==JSON.stringify(Object.assign({},o,{_ts:0}))){o._ts=ahora;}
+        else if(antes._ts){o._ts=antes._ts;}
       });
-      // Tombstones: lo que estaba antes y ya no está => marcar borrado y propagar.
-      previa.forEach(o=>{
-        if(o&&typeof o==='object'&&!o._del){
-          const u=uidDe(o);
-          if(!uidsNueva.has(u)&&!uidsNueva.has('id:'+o.id)){
-            salida.push({_uid:u,id:o.id,_del:true,_ts:ahora});
+      // Lo que estaba antes y ya no está => registrar como borrado (solo si no
+      // estamos en pleno pull, para no confundir un merge con un borrado real).
+      if(!syncing){
+        const del=getDeleted();let cambioDel=false;
+        previa.forEach(o=>{
+          if(o&&typeof o==='object'){
+            const u=uidDe(o);
+            if(!uidsNueva.has(u)){del[u]=ahora;cambioDel=true;}
           }
-        }
-      });
-      return JSON.stringify(salida);
+        });
+        if(cambioDel)setDeleted(del);
+      }
+      return JSON.stringify(nueva);
     }catch(e){return val;}
   }
-  function mergeArr(local,remote){
+
+  // Merge de arrays: une por identidad, gana _ts mayor, y EXCLUYE lo que esté en
+  // el registro de borrados (a menos que el registro local sea más nuevo que el borrado).
+  function mergeArr(local,remote,del){
+    del=del||{};
     const map={};
     (remote||[]).forEach(o=>{if(o&&typeof o==='object')map[uidDe(o)]=o;});
     (local||[]).forEach(o=>{
       if(o&&typeof o==='object'){const u=uidDe(o);const r=map[u];
         if(!r||(o._ts||0)>=(r._ts||0))map[u]=o;}
     });
-    // Se conservan los tombstones (_del) en storage para que sigan propagándose.
-    return Object.values(map);
+    // Aplicar borrados: si un uid está marcado borrado con ts >= ts del registro,
+    // se elimina. Si el registro fue re-creado después del borrado, sobrevive.
+    return Object.values(map).filter(o=>{
+      const u=uidDe(o);const dts=del[u];
+      if(dts==null)return true;
+      return (o._ts||0)>dts; // sobrevive solo si es más nuevo que su borrado
+    });
   }
   function mergeObj(local,remote){
-    // Para pdg_stock (contadores): ante conflicto se toma el MENOR valor por
-    // producto, para no "resucitar" stock que otro dispositivo ya descontó al
-    // vender. Es la opción conservadora y segura para inventario.
     const out=Object.assign({},remote||{},local||{});
     const l=local||{},r=remote||{};
     Object.keys(out).forEach(k=>{
       if(typeof l[k]==='number'&&typeof r[k]==='number')out[k]=Math.min(l[k],r[k]);
     });
+    return out;
+  }
+  function mergeDeleted(a,b){
+    const out=Object.assign({},a||{});
+    Object.keys(b||{}).forEach(k=>{if(out[k]==null||b[k]>out[k])out[k]=b[k];});
     return out;
   }
 
@@ -522,6 +535,7 @@ textarea{resize:vertical;min-height:110px;}
   }
 
   async function pull(){
+    if(syncLock)return;syncLock=true;
     try{
       const r=await fetch(REST+'?select=key,value',{headers:HDR,cache:'no-store'});
       if(!r.ok)throw 0;
@@ -529,13 +543,17 @@ textarea{resize:vertical;min-height:110px;}
       const server={};rows.forEach(x=>server[x.key]=x.value);
       syncing=true;
       let cambio=false;
+      // Registro de borrados: unir local + nube.
+      const delLocal=getDeleted();
+      const delMerged=mergeDeleted(delLocal, server[DEL_KEY]||{});
+      if(JSON.stringify(delMerged)!==JSON.stringify(delLocal)){setDeleted(delMerged);}
       SYNC_KEYS.forEach(key=>{
         const localRaw=_get(key);
-        if(server[key]===undefined)return; // no en la nube: conserva lo local
+        if(server[key]===undefined)return;
         let merged;
         if(ARRAY_KEYS.includes(key)){
           const local=localRaw?JSON.parse(localRaw):[];
-          merged=mergeArr(local,server[key]);
+          merged=mergeArr(local,server[key],delMerged);
         }else{
           const local=localRaw?JSON.parse(localRaw):{};
           merged=mergeObj(local,server[key]);
@@ -545,22 +563,23 @@ textarea{resize:vertical;min-height:110px;}
       });
       syncing=false;
       setOnline(true);
-      // Redibujar SOLO si hubo cambios reales Y el usuario no está editando.
       if(cambio){
         if(usuarioEditando()){clearTimeout(pull._retry);pull._retry=setTimeout(pull,2000);}
         else if(window.renderAll){try{renderAll();}catch(e){}}
       }
     }catch(e){setOnline(false);}
+    finally{syncLock=false;}
   }
   async function push(){
-    const rows=[];
-    SYNC_KEYS.forEach(k=>{const v=_get(k);if(v!=null)rows.push({key:k,value:JSON.parse(v)});});
-    if(!rows.length)return;
+    if(syncLock)return;syncLock=true;
     try{
-      // PROTECCIÓN ANTI-BORRADO MASIVO: antes de subir, se compara cuántos registros
-      // (contando tombstones) hay en la nube vs. lo que se va a subir. Si el push
-      // redujera drásticamente la nube (p.ej. de 100 a 2), se BLOQUEA: es señal de un
-      // dispositivo con datos incompletos, no de un borrado legítimo (que es de a uno).
+      const rows=[];
+      SYNC_KEYS.forEach(k=>{const v=_get(k);if(v!=null)rows.push({key:k,value:JSON.parse(v)});});
+      // Incluir el registro de borrados como una fila más.
+      rows.push({key:DEL_KEY,value:getDeleted()});
+      if(!rows.length){syncLock=false;return;}
+      // PROTECCIÓN ANTI-BORRADO MASIVO: si este dispositivo tiene muchos MENOS
+      // registros que la nube, no sube (señal de datos incompletos, no de borrado real).
       try{
         const chk=await fetch(REST+'?select=key,value',{headers:HDR,cache:'no-store'});
         if(chk.ok){
@@ -569,17 +588,16 @@ textarea{resize:vertical;min-height:110px;}
             if(!ARRAY_KEYS.includes(row.key))continue;
             const nube=Array.isArray(srv[row.key])?srv[row.key].length:0;
             const local=Array.isArray(row.value)?row.value.length:0;
-            // Si la nube tiene >=10 y subiríamos menos de la mitad, es sospechoso.
             if(nube>=10 && local < nube/2){
               setOnline(false);
-              console.warn('[sync] Push bloqueado: '+row.key+' nube='+nube+' local='+local+'. Posible dato incompleto; no se sobrescribe la nube.');
+              console.warn('[sync] Push bloqueado: '+row.key+' nube='+nube+' local='+local);
               if(!window.__syncAviso){window.__syncAviso=true;
-                try{alert('⚠ Sincronización pausada por seguridad.\n\nEste dispositivo tiene MENOS datos ('+local+') que la nube ('+nube+') en "'+row.key+'". Para no borrar datos, no se subió nada.\n\nAbre la página en el dispositivo que SÍ tiene todos los datos, o recarga esta página para bajar los datos de la nube.');}catch(e){}}
-              return; // aborta el push completo
+                try{alert('⚠ Sincronización pausada por seguridad.\n\nEsta pestaña tiene MENOS datos ('+local+') que la nube ('+nube+') en "'+row.key+'". Para no borrar datos, no se subió nada.\n\nRecarga esta página para bajar los datos completos de la nube.');}catch(e){}}
+              syncLock=false;return;
             }
           }
         }
-      }catch(e){/* si falla la verificación, continúa con el push normal */}
+      }catch(e){}
       const r=await fetch(REST,{
         method:'POST',
         headers:Object.assign({},HDR,{'Prefer':'resolution=merge-duplicates,return=minimal'}),
@@ -588,17 +606,12 @@ textarea{resize:vertical;min-height:110px;}
       if(!r.ok)throw 0;
       setOnline(true);
     }catch(e){setOnline(false);}
+    finally{syncLock=false;}
   }
   function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>push().then(pull),400);}
 
-  // La app no debe ver los tombstones: al leer un array, se filtran los _del.
-  localStorage.getItem=function(key){
-    const raw=_get(key);
-    if(ARRAY_KEYS.includes(key)&&raw){
-      try{const a=JSON.parse(raw);if(Array.isArray(a))return JSON.stringify(a.filter(o=>!(o&&o._del)));}catch(e){}
-    }
-    return raw;
-  };
+  // getItem ya NO filtra tombstones (los borrados viven en pdg_deleted, no en la lista).
+  // Se deja passthrough; la exclusión de borrados ocurre en el merge de pull.
 
   localStorage.setItem=function(key,val){
     if(SYNC_KEYS.includes(key))val=stamp(key,val);
@@ -618,11 +631,18 @@ textarea{resize:vertical;min-height:110px;}
     el.style.background=ok?'#2ecc71':'#e74c3c';
   }
 
+  // Sincronización ENTRE PESTAÑAS del mismo navegador: cuando otra pestaña
+  // escribe en localStorage, esta se entera y re-renderiza (sin volver a subir),
+  // evitando que pestañas hermanas peleen con versiones distintas.
+  window.addEventListener('storage',(e)=>{
+    if(e.key&&(SYNC_KEYS.includes(e.key)||e.key===DEL_KEY)){
+      if(!usuarioEditando()&&window.renderAll){try{renderAll();}catch(err){}}
+    }
+  });
+
   // Arranque SEGURO: primero BAJAR de la nube (pull) y hacer merge, y solo
-  // DESPUÉS subir (push). Así un dispositivo con localStorage incompleto o viejo
-  // primero recibe los datos buenos de la nube antes de aportar los suyos, y no
-  // puede "pisar" la nube reduciéndola. (Antes se hacía push->pull, y eso permitió
-  // que un dispositivo con pocas ventas sobrescribiera la nube completa.)
+  // DESPUÉS subir (push). Así un dispositivo/pestaña con datos viejos primero
+  // recibe lo bueno de la nube antes de aportar lo suyo, y no puede pisar la nube.
   window.addEventListener('DOMContentLoaded',()=>{
     pull().then(push).then(()=>{setInterval(pull,4000);});
   });
@@ -911,6 +931,15 @@ function generarCodigo(canal){
   const prefix=canal==='Instagram'?'I':canal==='Página Facebook'?'F':canal==='Messenger'?'M':'O';
   const todas=[...getVentas()];
   const existentes=todas.filter(v=>v.id&&v.id.startsWith(prefix)).map(v=>parseInt(v.id.slice(1))||0);
+  // También considerar IDs ya borrados (registro pdg_deleted) para NO reciclar
+  // un número usado antes. Las claves son del tipo 'id:I0090'.
+  try{
+    const del=JSON.parse(localStorage.getItem('pdg_deleted')||'{}');
+    Object.keys(del).forEach(k=>{
+      const m=k.match(/^id:(.+)$/);
+      if(m&&m[1].startsWith(prefix))existentes.push(parseInt(m[1].slice(1))||0);
+    });
+  }catch(e){}
   return prefix+(Math.max(0,...existentes)+1).toString().padStart(4,'0');
 }
 
