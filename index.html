@@ -145,11 +145,7 @@ textarea{resize:vertical;min-height:110px;}
 
 
 /* ══════════ ETIQUETAS STARKEN — IMPRESIÓN ══════════ */
-:root {
-    --ep-font-size: 12.5pt;
-    --ep-line-height: 1.22;
-    --ep-padding: 6px;
-}
+
 
 #etiquetas-print-wrap {
     display: none;
@@ -188,10 +184,10 @@ textarea{resize:vertical;min-height:110px;}
     border: 2px solid #000;
     width: 9cm;
     height: 7cm;
-    padding: var(--ep-padding) calc(var(--ep-padding) + 2px);
+    padding: 8px calc(8px + 2px);
     margin: 0 auto;
-    font-size: var(--ep-font-size);
-    line-height: var(--ep-line-height);
+    font-size: 8px;
+    line-height: 8px;
     color: #000;
     font-family: 'Segoe UI', Arial, sans-serif;
     box-sizing: border-box;
@@ -210,7 +206,7 @@ textarea{resize:vertical;min-height:110px;}
 }
 .etiqueta-card .ep-titulo {
     font-weight: 700;
-    font-size: calc(var(--ep-font-size) + 1pt);
+    font-size: calc(8px + 1pt);
     text-align: center;
     text-decoration: underline;
     margin-bottom: 2px;
@@ -226,13 +222,13 @@ textarea{resize:vertical;min-height:110px;}
     font-weight: 600;
     white-space: nowrap;
     color: #000;
-    font-size: var(--ep-font-size);
+    font-size: 8px;
 }
 .etiqueta-card .ep-valor {
     flex: 1;
     word-break: break-word;
     color: #000;
-    font-size: var(--ep-font-size);
+    font-size: 8px;
 }
 
 /* Botón editar (solo pantalla) */
@@ -297,7 +293,7 @@ textarea{resize:vertical;min-height:110px;}
 
 @media print {
     @page {
-        size: legal;
+        size: auto;
         margin: 0;
     }
     body > *:not(#etiquetas-print-wrap) {
@@ -2581,9 +2577,25 @@ function cerrarEtiquetas(){
 
 function ajustarZoom(val){
   val = parseFloat(val);
-  document.documentElement.style.setProperty('--ep-font-size', val + 'pt');
-  document.documentElement.style.setProperty('--ep-line-height', (val > 14 ? 1.15 : 1.22));
-  document.documentElement.style.setProperty('--ep-padding', (val > 14 ? '4px' : '6px'));
+  const cards = document.querySelectorAll('.etiqueta-card');
+  const lh = val > 14 ? 1.15 : 1.22;
+  const pad = val > 14 ? '6px 8px' : '8px 10px';
+  cards.forEach(c => {
+    c.style.fontSize = val + 'pt';
+    c.style.lineHeight = lh;
+    c.style.padding = pad;
+  });
+  // Ajustar títulos proporcionalmente
+  cards.forEach(c => {
+    const tits = c.querySelectorAll('.ep-titulo');
+    tits.forEach(t => t.style.fontSize = (val + 1) + 'pt');
+  });
+  // Labels y valores
+  cards.forEach(c => {
+    c.querySelectorAll('.ep-label, .ep-valor').forEach(el => {
+      el.style.fontSize = val + 'pt';
+    });
+  });
   const lbl = document.getElementById('ep-zoom-val');
   if(lbl) lbl.textContent = val + 'pt';
   const slider = document.getElementById('ep-zoom');
@@ -2594,7 +2606,7 @@ function ajustarZoom(val){
 function cargarZoom(){
   try {
     const saved = localStorage.getItem('starken_font_size');
-    if(saved) ajustarZoom(saved);
+    if(saved) setTimeout(() => ajustarZoom(saved), 50);
   } catch(e){}
 }
 
@@ -2616,10 +2628,10 @@ function escAttr(t){
 <div id="etiquetas-print-wrap">
   <div class="ep-toolbar">
     <span class="ep-count" id="ep-count">0 etiquetas</span>
-    <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;">
-      <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">🔤</span>
-      <input type="range" id="ep-zoom" min="8" max="16" step="0.5" value="12.5" style="width:120px;cursor:pointer;" oninput="ajustarZoom(this.value)">
-      <span id="ep-zoom-val" style="font-family:var(--font-mono);font-size:11px;color:var(--accent);min-width:36px;">12.5pt</span>
+    <div class="ep-zoom-wrap">
+      <span style="color:var(--muted);">🔤</span>
+      <input type="range" id="ep-zoom" min="8" max="16" step="0.5" value="12.5" oninput="ajustarZoom(this.value)">
+      <span id="ep-zoom-val">12.5pt</span>
       <button class="btn btn-secondary btn-sm" onclick="ajustarZoom(8)" style="padding:4px 8px;font-size:9px;">A−</button>
       <button class="btn btn-secondary btn-sm" onclick="ajustarZoom(16)" style="padding:4px 8px;font-size:9px;">A+</button>
     </div>
