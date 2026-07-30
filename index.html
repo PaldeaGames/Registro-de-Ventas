@@ -2579,21 +2579,14 @@ function ajustarZoom(val){
   val = parseFloat(val);
   const cards = document.querySelectorAll('.etiqueta-card');
   const lh = val > 14 ? 1.15 : 1.22;
-  const pad = val > 14 ? '6px 8px' : '8px 10px';
   cards.forEach(c => {
-    c.style.fontSize = val + 'pt';
-    c.style.lineHeight = lh;
-    c.style.padding = pad;
-  });
-  // Ajustar títulos proporcionalmente
-  cards.forEach(c => {
-    const tits = c.querySelectorAll('.ep-titulo');
-    tits.forEach(t => t.style.fontSize = (val + 1) + 'pt');
-  });
-  // Labels y valores
-  cards.forEach(c => {
+    // SOLO cambiar tamaño de letra interna, NUNCA el padding ni el tamaño del cuadro
+    c.querySelectorAll('.ep-titulo').forEach(el => {
+      el.style.fontSize = (val + 1) + 'pt';
+    });
     c.querySelectorAll('.ep-label, .ep-valor').forEach(el => {
       el.style.fontSize = val + 'pt';
+      el.style.lineHeight = lh;
     });
   });
   const lbl = document.getElementById('ep-zoom-val');
