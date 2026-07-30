@@ -322,7 +322,7 @@ textarea{resize:vertical;min-height:110px;}
     }
     .etiqueta-card {
         page-break-inside: avoid;
-        page-break-after: auto;
+        display: inline-block;
         width: 9cm;
         height: 6cm;
         margin: 0;
@@ -332,9 +332,8 @@ textarea{resize:vertical;min-height:110px;}
         line-height: 1.18;
         overflow: hidden;
         box-sizing: border-box;
-    }
-    .etiqueta-card:first-child {
-        margin-top: 0 !important;
+        text-align: left;
+        vertical-align: top;
     }
     .etiqueta-card + .etiqueta-card {
         margin-top: 0;
