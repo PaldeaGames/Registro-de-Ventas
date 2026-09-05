@@ -476,12 +476,19 @@ textarea{resize:vertical;min-height:110px;}
     <textarea id="fDesc" placeholder="Detalle de la venta — cartas específicas, notas, etc." style="min-height:130px;"></textarea>
   </div>
   <div class="card">
+    <div class="card-title">Tags / Comentarios internos</div>
+    <input type="text" id="fTags" placeholder="Ej: urgente, armar primero, pack especial, cuidado..." style="margin-bottom:8px;">
+    <div style="display:flex;flex-wrap:wrap;gap:5px;" id="tagPreview"></div>
+    <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:6px;">Separá con comas. Aparecerán como etiquetas en Pendientes.</div>
+  </div>
+  <div class="card">
     <div class="card-title">Entrega</div>
     <div class="form-grid">
       <div class="form-group full"><label>¿Requiere envío?</label>
         <select id="fEnvio" onchange="toggleEnvio()">
           <option value="no">No — Retiro presencial</option>
           <option value="si">Sí — Envío Starken</option>
+          <option value="propio">Envío propio (Paldea Games)</option>
         </select>
       </div>
       <div class="form-group" id="gRF"><label>Fecha retiro</label><input type="date" id="fRF"></div>
@@ -527,14 +534,25 @@ textarea{resize:vertical;min-height:110px;}
 <div class="section" id="tab-pendientes">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
     <div class="section-title" style="margin-bottom:0;">PENDIENTES</div>
-    <button class="btn btn-primary btn-sm" onclick="imprimirEtiquetasEnvios()" title="Generar etiquetas Starken de todos los envíos pendientes" style="background:var(--accent);color:#000;font-weight:600;border:none;">
+    <button class="btn btn-primary btn-sm" onclick="imprimirEtiquetasEnvios()" title="Generar etiquetas de todos los envíos pendientes" style="background:var(--accent);color:#000;font-weight:600;border:none;">
       🏷️ Imprimir etiquetas envíos
     </button>
   </div>
-  <div class="filters-row">
+  <div class="sb" style="margin-bottom:10px;">
+    <div class="sb-text">
+      <strong id="pendCountText">0 pedidos por armar</strong>
+      <span id="pendClientesText" style="display:block;margin-top:2px;color:var(--muted);font-size:11px;">0 clientes distintos</span>
+    </div>
+    <div id="pendMultiBadge" style="display:none;background:rgba(200,241,53,.12);color:var(--accent);font-family:var(--font-mono);font-size:10px;padding:4px 10px;border-radius:100px;border:1px solid rgba(200,241,53,.3);"></div>
+  </div>
+  <div class="filters-row" id="pendientesFilters">
     <button class="filter-btn active" onclick="filtrarP('todos',this)">Todos</button>
     <button class="filter-btn" onclick="filtrarP('envio',this)">Envíos</button>
     <button class="filter-btn" onclick="filtrarP('retiro',this)">Retiros</button>
+  </div>
+  <div class="filters-row" id="filtroPersonaRow" style="display:none;margin-top:6px;">
+    <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;align-self:center;margin-right:4px;">Filtrar persona:</span>
+    <div id="filtroPersonaBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
   </div>
   <div id="pendientesList"></div>
 </div>
@@ -1033,7 +1051,8 @@ function renderDash(){
     if(v.fecha>=lunesFecha&&v.fecha>=primerMes){tS+=v.monto;cS++;}
     if(v.fecha>=primerMes){tM+=v.monto;cM++;}
     if(v.envio==='si'&&v.estado!=='enviado')ep++;
-    if(v.envio!=='si'&&(v.estado==='pendiente'||v.estado==='por retirar'))rp++;
+    if(v.envio==='propio'&&v.estado!=='enviado')ep++;
+    if(v.envio!=='si'&&v.envio!=='propio'&&(v.estado==='pendiente'||v.estado==='por retirar'))rp++;
   });
 
   document.getElementById('sHoy').textContent=fmt(tH);document.getElementById('sHoySub').textContent=cH+' venta'+(cH!==1?'s':'');
@@ -1069,7 +1088,7 @@ function renderDash(){
   document.getElementById('topProd').textContent=topMes?topMes[0]+' — '+topMes[1]+' ventas':'—';
 
   // Envíos pendientes
-  const envPend=ventas.filter(v=>v.envio==='si'&&v.estado!=='enviado');
+  const envPend=ventas.filter(v=>(v.envio==='si'||v.envio==='propio')&&v.estado!=='enviado');
   const deEnv=document.getElementById('dashEnvPend');
   deEnv.innerHTML=envPend.length?envPend.map(v=>{
     const igLink=v.link&&v.link.includes('instagram')?'<a href="'+v.link+'" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;margin-left:6px;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:1px 6px;">IG ↗</a>':'';
@@ -1077,7 +1096,7 @@ function renderDash(){
   }).join(''):'<div style="color:var(--muted);font-size:11px;font-family:var(--font-mono);">Sin envíos pendientes</div>';
 
   // Retiros pendientes
-  const retPend=ventas.filter(v=>v.envio!=='si'&&(v.estado==='pendiente'||v.estado==='por retirar'));
+  const retPend=ventas.filter(v=>v.envio!=='si'&&v.envio!=='propio'&&(v.estado==='pendiente'||v.estado==='por retirar'));
   const deRet=document.getElementById('dashRetPend');
   deRet.innerHTML=retPend.length?retPend.map(v=>{
     const esHoy=v.retiroFecha===hoy;
@@ -1092,9 +1111,20 @@ function renderDash(){
 }
 
 function toggleEnvio(){
-  const es=document.getElementById('fEnvio').value==='si';
-  ['gRF','gRH'].forEach(id=>document.getElementById(id).style.display=es?'none':'');
-  ['gEmp','gCiu','gDir','gTel','gRut','gCorreo'].forEach(id=>document.getElementById(id).style.display=es?'':'none');document.getElementById('gCE').style.display=es?'':'none';
+  const val=document.getElementById('fEnvio').value;
+  const esEnvio = val==='si' || val==='propio';
+  const esPropio = val==='propio';
+  ['gRF','gRH'].forEach(id=>document.getElementById(id).style.display=esEnvio?'none':'');
+  ['gEmp','gCiu','gDir','gTel','gRut','gCorreo'].forEach(id=>document.getElementById(id).style.display=esEnvio?'':'none');
+  document.getElementById('gCE').style.display=esEnvio?'':'none';
+  const ceMsg = document.getElementById('gCE');
+  if(esPropio){
+    ceMsg.innerHTML = '&#9432; Envío propio de Paldea Games. El remitente en la etiqueta será Paldea Games.';
+    document.getElementById('gEmp').style.display='none';
+  } else if(val==='si'){
+    ceMsg.innerHTML = '&#9432; El costo de envío se completa después desde Pendientes, al momento de despachar.';
+    document.getElementById('gEmp').style.display='';
+  }
 }
 
 function agregarItem(){
@@ -1170,6 +1200,7 @@ function guardarVenta(){
     tipo:document.getElementById('fTipoProducto').value||carrito.map(c=>c.nombre).join(', '),
     items:[...carrito],
     desc:document.getElementById('fDesc').value,
+    tags:(document.getElementById('fTags').value||'').split(',').map(t=>t.trim()).filter(Boolean),
     monto,
     envio,
     empresa:envio==='si'?document.getElementById('fEmp').value:'',
@@ -1228,7 +1259,7 @@ function guardarVenta(){
 }
 
 function limpiarForm(){
-  ['fNombre','fLink','fDesc','fDir','fCiu','fTel','fRut','fCorreo','fRF','fRH'].forEach(id=>document.getElementById(id).value='');document.getElementById('fTipoProducto').value='';
+  ['fNombre','fLink','fDesc','fTags','fDir','fCiu','fTel','fRut','fCorreo','fRF','fRH'].forEach(id=>document.getElementById(id).value='');document.getElementById('fTipoProducto').value='';
   document.getElementById('fCanal').value='';document.getElementById('fEnvio').value='no';
   document.getElementById('fFecha').value=new Date().toISOString().split('T')[0];
   toggleEnvio();carrito=[];renderCarrito();
@@ -1698,7 +1729,7 @@ function renderVentas(){
     else if(filtroFecha==='mes'){const p=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];lista=lista.filter(v=>v.fecha>=p);}
   }
   if(filtroV==='pendientes')lista=lista.filter(v=>v.estado==='pendiente');
-  if(filtroV==='envio')lista=lista.filter(v=>v.envio==='si');
+  if(filtroV==='envio')lista=lista.filter(v=>v.envio==='si'||v.envio==='propio');
   if(filtroV==='retiro')lista=lista.filter(v=>v.envio==='no');
   if(filtroV==='enviado')lista=lista.filter(v=>v.estado==='enviado');
   if(!lista.length){el.innerHTML='<div class="empty">SIN VENTAS</div>';return;}
@@ -1710,7 +1741,7 @@ function renderVentas(){
       '<span class="badge b-pendiente">Pendiente</span>';
     const ciudad=v.ciudad||'Envío';
     const retiroF=v.retiroFecha?' '+fmtF(v.retiroFecha):'';
-    const tb=v.envio==='si'?`<span class="badge b-envio">&#128230; ${ciudad}</span>`:`<span class="badge b-retiro">&#127968; Retiro${retiroF}</span>`;
+    const tb=v.envio==='si'?`<span class="badge b-envio">&#128230; ${ciudad}</span>`:v.envio==='propio'?`<span class="badge b-envio" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.25);">&#128230; Envío propio${ciudad?' · '+ciudad:''}</span>`:`<span class="badge b-retiro">&#127968; Retiro${retiroF}</span>`;
     const linkHref=v.link?(v.link.startsWith('http')?v.link:'https://instagram.com/'+v.link.replace('@','')):'';
     const linkLabel=v.link?v.link.replace('https://www.instagram.com/','@').replace('https://www.facebook.com/','fb:'):'';
     const lh=v.link?`<a href="${linkHref}" target="_blank" style="font-family:var(--font-mono);font-size:10px;color:var(--accent);">${linkLabel}</a>`:'';
@@ -1819,18 +1850,47 @@ function goBack(){
 }
 function renderPendientes(){
   const ventas=getVentas();let pend=ventas.filter(v=>v.estado==='pendiente'||v.estado==='por retirar');
-  if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si');
+  if(filtroP==='envio')pend=pend.filter(v=>v.envio==='si'||v.envio==='propio');
   if(filtroP==='retiro')pend=pend.filter(v=>v.envio==='no');
-  // Ordenar por fecha de entrega más cercana primero
+  if(filtroPersona){
+    pend=pend.filter(v=>v.cliente===filtroPersona);
+  }
   pend.sort((a,b)=>{
     const fa=a.retiroFecha||proxDespacho();
     const fb=b.retiroFecha||proxDespacho();
     if(fa!==fb) return fa<fb?-1:1;
-    // mismo día: por hora
     const ha=a.retiroHora||'23:59';
     const hb=b.retiroHora||'23:59';
     return ha<hb?-1:ha>hb?1:0;
   });
+
+  const todosPend=ventas.filter(v=>v.estado==='pendiente'||v.estado==='por retirar');
+  const clienteCount={};
+  todosPend.forEach(v=>{clienteCount[v.cliente]=(clienteCount[v.cliente]||0)+1;});
+  const clientesDistintos=Object.keys(clienteCount).length;
+  const multiClientes=Object.entries(clienteCount).filter(([k,v])=>v>1).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('pendCountText').textContent=todosPend.length+' pedido'+(todosPend.length!==1?'s':'')+' por armar / despachar';
+  document.getElementById('pendClientesText').textContent=clientesDistintos+' cliente'+(clientesDistintos!==1?'s':'')+' distinto'+(clientesDistintos!==1?'s':'');
+  const multiBadge=document.getElementById('pendMultiBadge');
+  if(multiClientes.length){
+    multiBadge.style.display='inline-block';
+    multiBadge.textContent=multiClientes.length+' con múltiples';
+  } else {
+    multiBadge.style.display='none';
+  }
+  const fpRow=document.getElementById('filtroPersonaRow');
+  const fpBtns=document.getElementById('filtroPersonaBtns');
+  if(multiClientes.length){
+    fpRow.style.display='flex';
+    let htmlFp='<button class="filter-btn '+(filtroPersona?'':'active')+'" onclick="filtrarPersona(null)">Todos</button>';
+    multiClientes.forEach(([nombre,cnt])=>{
+      htmlFp+=`<button class="filter-btn ${filtroPersona===nombre?'active':''}" onclick="filtrarPersona('${nombre.replace(/'/g,"\\'")}')">${nombre} <span style="opacity:.6">(${cnt})</span></button>`;
+    });
+    fpBtns.innerHTML=htmlFp;
+  } else {
+    fpRow.style.display='none';
+  }
+
   const el=document.getElementById('pendientesList');
   if(!pend.length){el.innerHTML='<div class="empty">SIN PENDIENTES ✓</div>';return;}
   el.innerHTML=pend.map(v=>{
@@ -1838,8 +1898,9 @@ function renderPendientes(){
     const d=new Date(fRef+'T12:00:00');
     const items=v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo;
     const retH=v.retiroHora?' '+v.retiroHora:'';
-    const entrega=v.envio==='si'?(v.ciudad||'Sin ciudad'):'Retiro'+retH;
+    const entrega=v.envio==='si'?(v.ciudad||'Sin ciudad'):v.envio==='propio'?'Envío propio — '+(v.ciudad||'Sin ciudad'):'Retiro'+retH;
     const descP=v.desc?`<p style="color:var(--accent2);margin-top:3px;">${v.desc}</p>`:'';
+    const tagsHtml=v.tags&&v.tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${v.tags.map(t=>`<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--surface3);color:var(--accent);border:1px solid var(--border2);">${t}</span>`).join('')}</div>`:'';
     const accion=v.envio==='si'
       ?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
           <input type="number" placeholder="Costo Starken $" id="cep_${v.id}" style="width:130px;padding:7px 10px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
@@ -1847,15 +1908,22 @@ function renderPendientes(){
           <button class="btn btn-secondary btn-sm" onclick="imprimirEtiquetaIndividual('${v.id}')">&#128424; Imprimir etiqueta</button>
           <button class="btn btn-secondary btn-sm" onclick="copiarDestinatario('${v.id}')">&#128203; Copiar destinatario</button>
         </div>`
+      :v.envio==='propio'
+      ?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
+          <button class="btn btn-primary btn-sm" onclick="confirmarEnvioPropio('${v.id}')">&#10003; Confirmar envío propio</button>
+          <button class="btn btn-secondary btn-sm" onclick="imprimirEtiquetaIndividual('${v.id}')">&#128424; Imprimir etiqueta</button>
+        </div>`
       :`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
           <input type="date" id="rf_${v.id}" value="${v.retiroFecha||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
           <input type="time" id="rh_${v.id}" value="${v.retiroHora||''}" style="width:140px;padding:6px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
           <button class="btn btn-primary btn-sm" onclick="confirmarRetiro('${v.id}')">&#10003; Confirmar día y hora</button>
           <button class="btn btn-secondary btn-sm" onclick="marcarRetirado('${v.id}')">Entregado</button>
         </div>`;
-    const icon=v.envio==='si'?'&#128230;':'&#127968;';
+    const icon=v.envio==='si'?'&#128230;':v.envio==='propio'?'&#128230;':'&#127968;';
     const estadoBadge=v.envio==='si'
       ?`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.4);margin-bottom:6px;">&#128230; POR ENVIAR</span>`
+      :v.envio==='propio'
+      ?`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.4);margin-bottom:6px;">&#128230; ENVÍO PROPIO</span>`
       :`<span style="display:inline-block;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.4);margin-bottom:6px;">&#127968; POR ENTREGAR</span>`;
     const igTag=v.link&&v.link.includes('instagram')?`<a href="${v.link}" target="_blank" style="font-family:var(--font-mono);font-size:9px;color:#d580d5;text-decoration:none;border:1px solid rgba(200,100,200,.3);border-radius:100px;padding:2px 7px;margin-left:6px;vertical-align:middle;">IG ↗</a>`:'';
     const hoy2=new Date();hoy2.setHours(0,0,0,0);
@@ -1869,11 +1937,28 @@ function renderPendientes(){
     } else {
       pfHTML=`<div style="background:var(--surface2);border-radius:8px;padding:8px 4px;text-align:center;width:56px;"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div>`;
     }
-    return `<div class="pi"><div class="pf" style="padding:0;background:none;border:none;">${pfHTML}</div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    return `<div class="pi"><div class="pf" style="padding:0;background:none;border:none;">${pfHTML}</div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}${tagsHtml}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
-function filtrarP(tipo,btn){filtroP=tipo;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else{const btns=document.querySelectorAll('#tab-pendientes .filter-btn');btns.forEach(b=>{if((tipo==='retiro'&&b.textContent.trim()==='Retiros')||(tipo==='envio'&&b.textContent.trim()==='Envíos')||(tipo==='todos'&&b.textContent.trim()==='Todos'))b.classList.add('active');});}renderPendientes();}
+let filtroPersona=null;
+function filtrarPersona(nombre){
+  filtroPersona=nombre;
+  renderPendientes();
+}
+
+function confirmarEnvioPropio(id){
+  if(!confirm('¿Confirmar que el envío propio de Paldea Games fue entregado/despachado?'))return;
+  const ventas=getVentas();const v=ventas.find(v=>v.id===id);
+  if(!v)return;
+  v.estado='enviado';
+  setVentas(ventas);
+  actualizarSheets(id,0,v.total,'enviado');
+  toast('✓ Envío propio confirmado');
+  renderAll();
+}
+
+function filtrarP(tipo,btn){filtroP=tipo;filtroPersona=null;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else{const btns=document.querySelectorAll('#tab-pendientes .filter-btn');btns.forEach(b=>{if((tipo==='retiro'&&b.textContent.trim()==='Retiros')||(tipo==='envio'&&b.textContent.trim()==='Envíos')||(tipo==='todos'&&b.textContent.trim()==='Todos'))b.classList.add('active');});}renderPendientes();}
 function proxDespacho(){const d=new Date();const day=d.getDay();let dias=day<=3?3-day:day<=5?5-day:3+(7-day);if(dias===0&&d.getHours()>=18)dias=day===3?2:7;const nd=new Date(d);nd.setDate(d.getDate()+dias);return nd.toISOString().split('T')[0];}
 
 function abrirModal(id){ventaEntregaId=id;const v=getVentas().find(v=>v.id===id);document.getElementById('modalInfo').innerHTML='<strong>'+v.cliente+'</strong> — '+(v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):v.tipo);document.getElementById('modalEntrega').classList.add('open');}
@@ -2462,20 +2547,34 @@ const REMITENTE = {
   correo: 'd.ramirez.gar@gmail.com',
   dir: 'Las Hortensias 2444, Providencia, Santiago.'
 };
+const REMITENTE_PROPIO = {
+  nombre: 'Paldea Games',
+  rut: '',
+  cel: '',
+  correo: '',
+  dir: ''
+};
+let modoRemitente = 'starken'; // 'starken' | 'propio' 
 
 function imprimirEtiquetasEnvios(){
   const ventas = getVentas();
-  const envios = ventas.filter(v => v.envio === 'si' && v.estado !== 'enviado');
+  const envios = ventas.filter(v => (v.envio === 'si' || v.envio === 'propio') && v.estado !== 'enviado');
   if(!envios.length){ toast('No hay envíos pendientes para imprimir'); return; }
+
+  const hayPropio = envios.some(v => v.envio === 'propio');
+  const hayStarken = envios.some(v => v.envio === 'si');
+  if(hayPropio && !hayStarken) modoRemitente = 'propio';
+  else if(hayStarken && !hayPropio) modoRemitente = 'starken';
+  actualizarBotonRemitente();
 
   const container = document.getElementById('ep-container');
   container.innerHTML = '';
 
   envios.forEach((v, idx) => {
+    const rem = v.envio === 'propio' ? REMITENTE_PROPIO : REMITENTE;
     const card = document.createElement('div');
     card.className = 'etiqueta-card';
     card.id = 'ep-card-' + idx;
-
 
     card.innerHTML = `
       <button class="ep-edit-btn no-print" onclick="toggleEditarEtiqueta(${idx})">✏️ Editar</button>
@@ -2483,11 +2582,11 @@ function imprimirEtiquetasEnvios(){
 
       <div class="ep-bloque">
         <span class="ep-titulo">REMITENTE</span>
-        <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(REMITENTE.nombre)}</span><input class="ep-input" data-campo="rem-nombre" value="${escAttr(REMITENTE.nombre)}"></div>
-        <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(REMITENTE.rut)}</span><input class="ep-input" data-campo="rem-rut" value="${escAttr(REMITENTE.rut)}"></div>
-        <div class="ep-fila"><span class="ep-label">CEL:</span><span class="ep-valor">${escHtml(REMITENTE.cel)}</span><input class="ep-input" data-campo="rem-cel" value="${escAttr(REMITENTE.cel)}"></div>
-        <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(REMITENTE.correo)}</span><input class="ep-input" data-campo="rem-correo" value="${escAttr(REMITENTE.correo)}"></div>
-        <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(REMITENTE.dir)}</span><input class="ep-input" data-campo="rem-dir" value="${escAttr(REMITENTE.dir)}"></div>
+        <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(rem.nombre)}</span><input class="ep-input" data-campo="rem-nombre" value="${escAttr(rem.nombre)}"></div>
+        <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(rem.rut)}</span><input class="ep-input" data-campo="rem-rut" value="${escAttr(rem.rut)}"></div>
+        <div class="ep-fila"><span class="ep-label">CEL:</span><span class="ep-valor">${escHtml(rem.cel)}</span><input class="ep-input" data-campo="rem-cel" value="${escAttr(rem.cel)}"></div>
+        <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(rem.correo)}</span><input class="ep-input" data-campo="rem-correo" value="${escAttr(rem.correo)}"></div>
+        <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(rem.dir)}</span><input class="ep-input" data-campo="rem-dir" value="${escAttr(rem.dir)}"></div>
       </div>
       <div class="ep-bloque">
         <span class="ep-titulo">DESTINATARIO</span>
@@ -2517,7 +2616,6 @@ function toggleEditarEtiqueta(idx){
 function guardarEtiqueta(idx){
   const card = document.getElementById('ep-card-' + idx);
   if(!card) return;
-  // Tomar los valores de los inputs y pasarlos a los spans
   card.querySelectorAll('.ep-input').forEach(inp => {
     const valor = inp.value.trim() || '—';
     const fila = inp.closest('.ep-fila');
@@ -2530,14 +2628,69 @@ function guardarEtiqueta(idx){
   toast('✓ Etiqueta actualizada');
 }
 
+function toggleRemitente(){
+  modoRemitente = modoRemitente === 'starken' ? 'propio' : 'starken';
+  actualizarBotonRemitente();
+  const container = document.getElementById('ep-container');
+  if(!container.children.length) return;
+  if(document.getElementById('ep-count').textContent.includes('etiqueta')){
+    const ventas = getVentas();
+    const envios = ventas.filter(v => (v.envio === 'si' || v.envio === 'propio') && v.estado !== 'enviado');
+    container.innerHTML = '';
+    envios.forEach((v, idx) => {
+      const rem = modoRemitente === 'propio' ? REMITENTE_PROPIO : REMITENTE;
+      const card = document.createElement('div');
+      card.className = 'etiqueta-card';
+      card.id = 'ep-card-' + idx;
+      card.innerHTML = `
+        <button class="ep-edit-btn no-print" onclick="toggleEditarEtiqueta(${idx})">✏️ Editar</button>
+        <button class="ep-save-btn no-print" onclick="guardarEtiqueta(${idx})">💾 Guardar</button>
+        <div class="ep-bloque">
+          <span class="ep-titulo">REMITENTE</span>
+          <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(rem.nombre)}</span><input class="ep-input" data-campo="rem-nombre" value="${escAttr(rem.nombre)}"></div>
+          <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(rem.rut)}</span><input class="ep-input" data-campo="rem-rut" value="${escAttr(rem.rut)}"></div>
+          <div class="ep-fila"><span class="ep-label">CEL:</span><span class="ep-valor">${escHtml(rem.cel)}</span><input class="ep-input" data-campo="rem-cel" value="${escAttr(rem.cel)}"></div>
+          <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(rem.correo)}</span><input class="ep-input" data-campo="rem-correo" value="${escAttr(rem.correo)}"></div>
+          <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(rem.dir)}</span><input class="ep-input" data-campo="rem-dir" value="${escAttr(rem.dir)}"></div>
+        </div>
+        <div class="ep-bloque">
+          <span class="ep-titulo">DESTINATARIO</span>
+          <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(v.cliente || '—')}</span><input class="ep-input" data-campo="dest-nombre" value="${escAttr(v.cliente || '')}"></div>
+          <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(v.rut || '—')}</span><input class="ep-input" data-campo="dest-rut" value="${escAttr(v.rut || '')}"></div>
+          <div class="ep-fila"><span class="ep-label">Celular:</span><span class="ep-valor">${escHtml(v.telefono || '—')}</span><input class="ep-input" data-campo="dest-cel" value="${escAttr(v.telefono || '')}"></div>
+          <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(v.correo || '—')}</span><input class="ep-input" data-campo="dest-correo" value="${escAttr(v.correo || '')}"></div>
+          <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(v.direccion || '—')}</span><input class="ep-input" data-campo="dest-dir" value="${escAttr(v.direccion || '')}"></div>
+          <div class="ep-fila"><span class="ep-label">Ciudad:</span><span class="ep-valor">${escHtml(v.ciudad || '—')}</span><input class="ep-input" data-campo="dest-ciudad" value="${escAttr(v.ciudad || '')}"></div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+  toast('✓ Modo remitente: ' + (modoRemitente === 'starken' ? 'Starken' : 'Paldea Games'));
+}
+
+function actualizarBotonRemitente(){
+  const btn = document.getElementById('ep-toggle-remitente');
+  if(btn){
+    btn.textContent = modoRemitente === 'starken' ? '🔄 Modo: Starken' : '🔄 Modo: Paldea Games';
+    btn.style.background = modoRemitente === 'propio' ? 'rgba(168,85,247,.2)' : '';
+    btn.style.borderColor = modoRemitente === 'propio' ? 'rgba(168,85,247,.4)' : '';
+    btn.style.color = modoRemitente === 'propio' ? '#a855f7' : '';
+  }
+}
+
 function imprimirEtiquetaIndividual(id){
   const ventas = getVentas();
   const v = ventas.find(x => x.id === id);
   if(!v){ toast('Venta no encontrada'); return; }
 
+  modoRemitente = v.envio === 'propio' ? 'propio' : 'starken';
+  actualizarBotonRemitente();
+
   const container = document.getElementById('ep-container');
   container.innerHTML = '';
 
+  const rem = modoRemitente === 'propio' ? REMITENTE_PROPIO : REMITENTE;
   const card = document.createElement('div');
   card.className = 'etiqueta-card';
   card.id = 'ep-card-solo';
@@ -2548,11 +2701,11 @@ function imprimirEtiquetaIndividual(id){
 
     <div class="ep-bloque">
       <span class="ep-titulo">REMITENTE</span>
-      <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(REMITENTE.nombre)}</span><input class="ep-input" data-campo="rem-nombre" value="${escAttr(REMITENTE.nombre)}"></div>
-      <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(REMITENTE.rut)}</span><input class="ep-input" data-campo="rem-rut" value="${escAttr(REMITENTE.rut)}"></div>
-      <div class="ep-fila"><span class="ep-label">CEL:</span><span class="ep-valor">${escHtml(REMITENTE.cel)}</span><input class="ep-input" data-campo="rem-cel" value="${escAttr(REMITENTE.cel)}"></div>
-      <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(REMITENTE.correo)}</span><input class="ep-input" data-campo="rem-correo" value="${escAttr(REMITENTE.correo)}"></div>
-      <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(REMITENTE.dir)}</span><input class="ep-input" data-campo="rem-dir" value="${escAttr(REMITENTE.dir)}"></div>
+      <div class="ep-fila"><span class="ep-label">Nombre:</span><span class="ep-valor">${escHtml(rem.nombre)}</span><input class="ep-input" data-campo="rem-nombre" value="${escAttr(rem.nombre)}"></div>
+      <div class="ep-fila"><span class="ep-label">RUT:</span><span class="ep-valor">${escHtml(rem.rut)}</span><input class="ep-input" data-campo="rem-rut" value="${escAttr(rem.rut)}"></div>
+      <div class="ep-fila"><span class="ep-label">CEL:</span><span class="ep-valor">${escHtml(rem.cel)}</span><input class="ep-input" data-campo="rem-cel" value="${escAttr(rem.cel)}"></div>
+      <div class="ep-fila"><span class="ep-label">Correo:</span><span class="ep-valor">${escHtml(rem.correo)}</span><input class="ep-input" data-campo="rem-correo" value="${escAttr(rem.correo)}"></div>
+      <div class="ep-fila"><span class="ep-label">Dirección:</span><span class="ep-valor">${escHtml(rem.dir)}</span><input class="ep-input" data-campo="rem-dir" value="${escAttr(rem.dir)}"></div>
     </div>
     <div class="ep-bloque">
       <span class="ep-titulo">DESTINATARIO</span>
@@ -2581,7 +2734,6 @@ function ajustarZoom(val){
   const cards = document.querySelectorAll('.etiqueta-card');
   const lh = val > 14 ? 1.15 : 1.22;
   cards.forEach(c => {
-    // SOLO cambiar tamaño de letra interna, NUNCA el padding ni el tamaño del cuadro
     c.querySelectorAll('.ep-titulo').forEach(el => {
       el.style.fontSize = (val + 1) + 'pt';
     });
@@ -2603,7 +2755,6 @@ function cargarZoom(){
     if(saved) setTimeout(() => ajustarZoom(saved), 50);
   } catch(e){}
 }
-
 function escHtml(t){
   if(t == null || t === '') return '—';
   const div = document.createElement('div');
@@ -2622,6 +2773,9 @@ function escAttr(t){
 <div id="etiquetas-print-wrap">
   <div class="ep-toolbar">
     <span class="ep-count" id="ep-count">0 etiquetas</span>
+    <button class="btn btn-secondary btn-sm" id="ep-toggle-remitente" onclick="toggleRemitente()" title="Cambiar remitente entre Starken y Paldea Games" style="font-size:10px;letter-spacing:1px;">
+      🔄 Modo: Starken
+    </button>
     <div class="ep-zoom-wrap">
       <span style="color:var(--muted);">🔤</span>
       <input type="range" id="ep-zoom" min="8" max="16" step="0.5" value="12.5" oninput="ajustarZoom(this.value)">
