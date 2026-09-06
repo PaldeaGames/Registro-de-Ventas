@@ -515,10 +515,6 @@ textarea{resize:vertical;min-height:110px;}
 <div class="section" id="tab-ventas">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
     <div class="section-title" style="margin-bottom:0;">VENTAS</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-secondary btn-sm" onclick="exportarHistorialSheets()" title="Enviar todos los registros históricos a Google Sheets">&#128228; Exportar historial a Sheets</button>
-      <button class="btn btn-danger btn-sm" onclick="limpiarVentasHistoricas()" title="Eliminar ventas precargadas del Excel">&#128465; Limpiar historial Excel</button>
-    </div>
   </div>
   <div class="filters-row">
     <button class="filter-btn active" onclick="filtrarV('todas',this)">Todas</button>
@@ -1900,7 +1896,11 @@ function renderPendientes(){
     const retH=v.retiroHora?' '+v.retiroHora:'';
     const entrega=v.envio==='si'?(v.ciudad||'Sin ciudad'):v.envio==='propio'?'Envío propio — '+(v.ciudad||'Sin ciudad'):'Retiro'+retH;
     const descP=v.desc?`<p style="color:var(--accent2);margin-top:3px;">${v.desc}</p>`:'';
-    const tagsHtml=v.tags&&v.tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${v.tags.map(t=>`<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--surface3);color:var(--accent);border:1px solid var(--border2);">${t}</span>`).join('')}</div>`:'';
+    const tagsEditId = 'tags-edit-'+v.id;
+    const tagsDisplayId = 'tags-disp-'+v.id;
+    const tagsInputId = 'tags-inp-'+v.id;
+    const tagsStr = (v.tags||[]).join(', ');
+    const tagsHtml = `<div id="${tagsDisplayId}" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;align-items:center;">${v.tags&&v.tags.length?v.tags.map(t=>`<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--surface3);color:var(--accent);border:1px solid var(--border2);">${t}</span>`).join(''):'<span style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);">Sin tags</span>'}<button class="btn btn-secondary btn-sm" onclick="mostrarEditarTags('${v.id}')" style="padding:2px 7px;font-size:9px;margin-left:4px;" title="Editar tags">✏️</button></div><div id="${tagsEditId}" style="display:none;margin-top:5px;"><input type="text" id="${tagsInputId}" value="${tagsStr}" style="flex:1;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);width:100%;"><div style="display:flex;gap:5px;margin-top:4px;"><button class="btn btn-primary btn-sm" onclick="guardarTags('${v.id}')" style="padding:4px 10px;font-size:10px;">💾 Guardar</button><button class="btn btn-secondary btn-sm" onclick="cancelarEditarTags('${v.id}')" style="padding:4px 10px;font-size:10px;">✕</button></div></div>`;
     const accion=v.envio==='si'
       ?`<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
           <input type="number" placeholder="Costo Starken $" id="cep_${v.id}" style="width:130px;padding:7px 10px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">
@@ -1956,6 +1956,27 @@ function confirmarEnvioPropio(id){
   actualizarSheets(id,0,v.total,'enviado');
   toast('✓ Envío propio confirmado');
   renderAll();
+}
+
+function mostrarEditarTags(id){
+  document.getElementById('tags-disp-'+id).style.display='none';
+  document.getElementById('tags-edit-'+id).style.display='block';
+  document.getElementById('tags-inp-'+id).focus();
+}
+function cancelarEditarTags(id){
+  document.getElementById('tags-disp-'+id).style.display='flex';
+  document.getElementById('tags-edit-'+id).style.display='none';
+}
+function guardarTags(id){
+  const val=document.getElementById('tags-inp-'+id).value;
+  const ventas=getVentas();
+  const v=ventas.find(v=>v.id===id);
+  if(v){
+    v.tags=val.split(',').map(t=>t.trim()).filter(Boolean);
+    setVentas(ventas);
+    toast('✓ Tags actualizados');
+    renderPendientes();
+  }
 }
 
 function filtrarP(tipo,btn){filtroP=tipo;filtroPersona=null;document.querySelectorAll('#tab-pendientes .filter-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else{const btns=document.querySelectorAll('#tab-pendientes .filter-btn');btns.forEach(b=>{if((tipo==='retiro'&&b.textContent.trim()==='Retiros')||(tipo==='envio'&&b.textContent.trim()==='Envíos')||(tipo==='todos'&&b.textContent.trim()==='Todos'))b.classList.add('active');});}renderPendientes();}
