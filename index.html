@@ -638,6 +638,7 @@ textarea{resize:vertical;min-height:110px;}
   <!-- FILA 3: COMPRAS POR CONCRETAR -->
   <div class="card" style="margin-top:14px;margin-bottom:0;border-color:rgba(168,85,247,.25);">
     <div class="card-title" style="color:#a855f7;">🃏 Chayas por concretar</div>
+    <div id="chayasContador" style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;"></div>
     <div class="form-grid" style="margin-bottom:12px;">
       <div class="form-group"><label>Nombre / quién la ofrece</label><input type="text" id="ccNombre" placeholder="Ej: Carlos Gutiérrez o @usuario"></div>
       <div class="form-group"><label>Cantidad de cartas</label><input type="number" id="ccCantidad" placeholder="Ej: 350" min="0"></div>
@@ -2528,6 +2529,7 @@ function getVentasPend(){return JSON.parse(localStorage.getItem('pdg_ventas_pend
 function setVentasPend(v){localStorage.setItem('pdg_ventas_pend',JSON.stringify(v));}
 function getVentasConcretar(){return JSON.parse(localStorage.getItem('pdg_ventas_concretar')||'[]');}
 function setVentasConcretar(v){localStorage.setItem('pdg_ventas_concretar',JSON.stringify(v));}
+const META_CHAYAS=55000; // meta de cartas a juntar
 function getComprasConcretar(){return JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');}
 function setComprasConcretar(v){localStorage.setItem('pdg_compras_concretar',JSON.stringify(v));}
 function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
@@ -2678,6 +2680,31 @@ function renderRecordatorios(){
       const nombreHtml=c.nombre||(c.link?c.link.replace('https://www.instagram.com/','@').replace(/\/$/,''):'Sin nombre');
       return '<div class="rv-item" style="border-color:rgba(168,85,247,.2);"><div class="rv-item-info"><div class="rv-nombre">'+nombreHtml+'</div>'+linkHtml+cantHtml+descHtml+'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+c.fecha+'</div></div><div class="rv-actions"><button class="rv-btn-del" onclick="eliminarCompraConcretar(\''+c.id+'\')" title="Eliminar">×</button></div></div>';
     }).join('');}
+  }
+
+  // Contador de cartas: total acumulado vs meta
+  const contEl=document.getElementById('chayasContador');
+  if(contEl){
+    const totalCartas=cc.reduce((a,c)=>a+(parseInt(c.cantidad)||0),0);
+    const pct=Math.min(100,(totalCartas/META_CHAYAS)*100);
+    const falta=Math.max(0,META_CHAYAS-totalCartas);
+    const nf=n=>Math.round(n).toLocaleString('es-CL');
+    const colorBarra=pct>=100?'var(--accent)':'#a855f7';
+    contEl.innerHTML=
+      '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
+        '<div>'+
+          '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Cartas acumuladas</div>'+
+          '<div style="font-family:var(--font-display);font-size:34px;line-height:1;color:'+colorBarra+';letter-spacing:1px;">'+nf(totalCartas)+' <span style="font-size:16px;color:var(--muted);">/ '+nf(META_CHAYAS)+'</span></div>'+
+        '</div>'+
+        '<div style="text-align:right;">'+
+          '<div style="font-family:var(--font-display);font-size:26px;line-height:1;color:'+colorBarra+';">'+pct.toFixed(1)+'%</div>'+
+          '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:3px;">'+(falta>0?'faltan '+nf(falta):'¡meta cumplida!')+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;">'+
+        '<div style="height:100%;width:'+pct+'%;background:'+colorBarra+';border-radius:100px;transition:width .5s;"></div>'+
+      '</div>'+
+      '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:8px;">'+cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(cc.length?' · promedio '+nf(totalCartas/cc.length)+' cartas c/u':'')+'</div>';
   }
 
   // Badge
