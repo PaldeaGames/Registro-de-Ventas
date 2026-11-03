@@ -142,6 +142,10 @@ textarea{resize:vertical;min-height:110px;}
 .tarea-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:15px;padding:2px 5px;transition:color .2s;opacity:0;}
 .tarea-item:hover .tarea-del{opacity:1;}
 .tarea-del:hover{color:var(--red);}
+.pend-del{position:absolute;top:6px;right:8px;background:none;border:1px solid transparent;color:var(--muted2);cursor:pointer;font-size:14px;line-height:1;padding:3px 7px;border-radius:6px;transition:all .2s;z-index:3;}
+.pend-del:hover{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08);}
+.pi{position:relative;}
+.pi .pi-actions{padding-top:20px;}
 
 
 /* ══════════ ETIQUETAS STARKEN — IMPRESIÓN ══════════ */
@@ -541,6 +545,13 @@ textarea{resize:vertical;min-height:110px;}
     </div>
     <div id="pendMultiBadge" style="display:none;background:rgba(200,241,53,.12);color:var(--accent);font-family:var(--font-mono);font-size:10px;padding:4px 10px;border-radius:100px;border:1px solid rgba(200,241,53,.3);"></div>
   </div>
+  <div class="card" style="padding:14px 16px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="pendSearch" placeholder="🔍 Buscar en pendientes — nombre, carta, código, ciudad, monto, tag, nota..." oninput="buscarPendientes(this.value)" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:var(--font-body);font-size:14px;outline:none;">
+      <button class="btn btn-secondary btn-sm" onclick="limpiarBusquedaPend()" title="Limpiar búsqueda" style="white-space:nowrap;">✕</button>
+    </div>
+    <div id="pendSearchInfo" style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:7px;display:none;"></div>
+  </div>
   <div class="filters-row" id="pendientesFilters">
     <button class="filter-btn active" onclick="filtrarP('todos',this)">Todos</button>
     <button class="filter-btn" onclick="filtrarP('envio',this)">Envíos</button>
@@ -623,6 +634,21 @@ textarea{resize:vertical;min-height:110px;}
     </div>
 
   </div>
+
+  <!-- FILA 3: COMPRAS POR CONCRETAR -->
+  <div class="card" style="margin-top:14px;margin-bottom:0;border-color:rgba(168,85,247,.25);">
+    <div class="card-title" style="color:#a855f7;">🃏 Chayas por concretar</div>
+    <div class="form-grid" style="margin-bottom:12px;">
+      <div class="form-group"><label>Nombre / quién la ofrece</label><input type="text" id="ccNombre" placeholder="Ej: Carlos Gutiérrez o @usuario"></div>
+      <div class="form-group"><label>Cantidad de cartas</label><input type="number" id="ccCantidad" placeholder="Ej: 350" min="0"></div>
+      <div class="form-group full"><label>Link de la persona</label><input type="text" id="ccLink" placeholder="https://instagram.com/... o @usuario"></div>
+      <div class="form-group full"><label>Descripción</label><input type="text" id="ccDesc" placeholder="Ej: 5 cajas de ETB, lote completo, incluye hits..." onkeydown="if(event.key==='Enter')agregarCompraConcretar()"></div>
+    </div>
+    <div class="btn-row" style="margin-top:0;">
+      <button class="btn btn-secondary btn-sm" onclick="agregarCompraConcretar()">+ Agregar chaya</button>
+    </div>
+    <div id="comprasConcretarList" style="margin-top:16px;"></div>
+  </div>
 </div>
 
 </main>
@@ -650,8 +676,8 @@ textarea{resize:vertical;min-height:110px;}
   const REST=SB_URL+'/rest/v1/pdg_data';
   const HDR={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
 
-  const SYNC_KEYS=['pdg_ventas','pdg_stock','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
-  const ARRAY_KEYS=['pdg_ventas','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar'];
+  const SYNC_KEYS=['pdg_ventas','pdg_stock','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar','pdg_compras_concretar'];
+  const ARRAY_KEYS=['pdg_ventas','pdg_interesados','pdg_informes','pdg_tareas','pdg_ventas_pend','pdg_ventas_concretar','pdg_compras_concretar'];
   const DEL_KEY='pdg_deleted'; // registro explícito de borrados: { uid: ts }
   const _get=localStorage.getItem.bind(localStorage);
   const _set=localStorage.setItem.bind(localStorage);
@@ -1851,6 +1877,15 @@ function renderPendientes(){
   if(filtroPersona){
     pend=pend.filter(v=>v.cliente===filtroPersona);
   }
+  // Buscador por palabras clave: busca en TODOS los datos de cada pendiente
+  const qPend=normTxt(busquedaPend);
+  if(qPend){
+    const palabras=qPend.split(/\s+/).filter(Boolean);
+    pend=pend.filter(v=>{
+      const blob=normTxt(textoVenta(v));
+      return palabras.every(p=>blob.includes(p));
+    });
+  }
   pend.sort((a,b)=>{
     const fa=a.retiroFecha||proxDespacho();
     const fb=b.retiroFecha||proxDespacho();
@@ -1887,8 +1922,14 @@ function renderPendientes(){
     fpRow.style.display='none';
   }
 
+  const infoEl=document.getElementById('pendSearchInfo');
+  if(infoEl){
+    if(qPend){infoEl.style.display='block';infoEl.textContent=pend.length+' resultado'+(pend.length!==1?'s':'')+' para "'+busquedaPend.trim()+'"';}
+    else{infoEl.style.display='none';infoEl.textContent='';}
+  }
+
   const el=document.getElementById('pendientesList');
-  if(!pend.length){el.innerHTML='<div class="empty">SIN PENDIENTES ✓</div>';return;}
+  if(!pend.length){el.innerHTML='<div class="empty">'+(qPend?'SIN RESULTADOS PARA "'+busquedaPend.trim().toUpperCase()+'"':'SIN PENDIENTES ✓')+'</div>';return;}
   el.innerHTML=pend.map(v=>{
     const fRef=v.retiroFecha||proxDespacho();
     const d=new Date(fRef+'T12:00:00');
@@ -1937,7 +1978,8 @@ function renderPendientes(){
     } else {
       pfHTML=`<div style="background:var(--surface2);border-radius:8px;padding:8px 4px;text-align:center;width:56px;"><div class="pf-d">${d.getDate()}</div><div class="pf-m">${d.toLocaleDateString('es-CL',{weekday:'short',month:'short'})}</div></div>`;
     }
-    return `<div class="pi"><div class="pf" style="padding:0;background:none;border:none;">${pfHTML}</div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}${tagsHtml}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
+    const btnBorrar=`<button class="pend-del" onclick="eliminarPendiente('${v.id}')" title="Eliminar este pendiente">✕</button>`;
+    return `<div class="pi" style="position:relative;">${btnBorrar}<div class="pf" style="padding:0;background:none;border:none;">${pfHTML}</div><div class="pi-info">${estadoBadge}<h4>${icon} ${v.cliente}${igTag} <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${v.id}</span></h4><p>${items}</p><p>${entrega}</p>${descP}${tagsHtml}</div><div class="pi-actions"><div class="pi-monto">${fmt(v.total)}</div>${accion}</div></div>`;
   }).join('');
 }
 
@@ -1945,6 +1987,57 @@ let filtroPersona=null;
 function filtrarPersona(nombre){
   filtroPersona=nombre;
   renderPendientes();
+}
+
+/* ── BUSCADOR DE PENDIENTES ── */
+let busquedaPend='';
+function normTxt(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+// Arma un texto con TODOS los datos de una venta para poder buscar cualquier palabra
+function textoVenta(v){
+  const partes=[
+    v.id,v.cliente,v.canal,v.link,v.tipo,v.desc,v.ciudad,v.direccion,
+    v.telefono,v.rut,v.correo,v.empresa,v.estado,v.fecha,v.retiroFecha,v.retiroHora,
+    v.monto,v.total,v.costoEnvio,
+    v.envio==='si'?'envio starken':v.envio==='propio'?'envio propio paldea':'retiro presencial',
+    (v.tags||[]).join(' '),
+    (v.items||[]).map(i=>i.qty+'x '+i.nombre+' '+i.precio).join(' ')
+  ];
+  // Montos también sin separadores y con puntos (12000 / 12.000)
+  [v.monto,v.total,v.costoEnvio].forEach(n=>{
+    if(n)partes.push(Math.round(n).toLocaleString('es-CL'));
+  });
+  if(v.fecha)partes.push(fmtF(v.fecha));
+  if(v.retiroFecha)partes.push(fmtF(v.retiroFecha));
+  return partes.filter(x=>x!==undefined&&x!==null&&x!=='').join(' | ');
+}
+function buscarPendientes(val){
+  busquedaPend=val||'';
+  renderPendientes();
+}
+function limpiarBusquedaPend(){
+  busquedaPend='';
+  const inp=document.getElementById('pendSearch');
+  if(inp)inp.value='';
+  renderPendientes();
+}
+
+// Eliminar un pendiente (duplicado, error de ingreso, etc.)
+function eliminarPendiente(id){
+  const v=getVentas().find(x=>x.id===id);
+  if(!v)return;
+  const detalle=v.items?v.items.map(i=>i.qty+'× '+i.nombre).join(', '):(v.tipo||'');
+  if(!confirm('¿Eliminar este pendiente?\n\n'+v.cliente+' — '+v.id+'\n'+detalle+'\n'+fmt(v.total)+'\n\nSe borra la venta completa y no se puede deshacer.'))return;
+  const ventas=getVentas().filter(x=>x.id!==id);
+  setVentas(ventas);
+  const newStock={};
+  STOCK_PACKS.forEach(p=>newStock[p]=10);
+  ventas.forEach(x=>{if(x.items)x.items.forEach(i=>{if(newStock[i.nombre]!==undefined)newStock[i.nombre]=Math.max(0,newStock[i.nombre]-i.qty);});});
+  setStock(newStock);
+  toast('✓ Pendiente eliminado — sincronizando...');
+  renderAll();
+  eliminarSheets(id);
 }
 
 function confirmarEnvioPropio(id){
@@ -2435,6 +2528,8 @@ function getVentasPend(){return JSON.parse(localStorage.getItem('pdg_ventas_pend
 function setVentasPend(v){localStorage.setItem('pdg_ventas_pend',JSON.stringify(v));}
 function getVentasConcretar(){return JSON.parse(localStorage.getItem('pdg_ventas_concretar')||'[]');}
 function setVentasConcretar(v){localStorage.setItem('pdg_ventas_concretar',JSON.stringify(v));}
+function getComprasConcretar(){return JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');}
+function setComprasConcretar(v){localStorage.setItem('pdg_compras_concretar',JSON.stringify(v));}
 function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
 function setTareas(v){localStorage.setItem('pdg_tareas',JSON.stringify(v));}
 
@@ -2485,6 +2580,27 @@ function agregarVentaConcretar(){
 
 function eliminarVentaConcretar(id){
   setVentasConcretar(getVentasConcretar().filter(v=>v.id!==id));
+  renderRecordatorios();
+  toast('Eliminada');
+}
+
+function agregarCompraConcretar(){
+  const nombre=document.getElementById('ccNombre').value.trim();
+  const link=document.getElementById('ccLink').value.trim();
+  const cantidad=parseInt(document.getElementById('ccCantidad').value)||0;
+  const desc=document.getElementById('ccDesc').value.trim();
+  if(!nombre&&!link)return toast('Ingresa el nombre o el link de la persona');
+  if(!desc&&!cantidad)return toast('Ingresa la cantidad o una descripción');
+  const cc=getComprasConcretar();
+  cc.unshift({id:'CC'+Date.now(),nombre,link,cantidad,desc,fecha:new Date().toISOString().split('T')[0]});
+  setComprasConcretar(cc);
+  ['ccNombre','ccLink','ccCantidad','ccDesc'].forEach(i=>document.getElementById(i).value='');
+  renderRecordatorios();
+  toast('✓ Chaya anotada');
+}
+
+function eliminarCompraConcretar(id){
+  setComprasConcretar(getComprasConcretar().filter(c=>c.id!==id));
   renderRecordatorios();
   toast('Eliminada');
 }
@@ -2549,8 +2665,23 @@ function renderRecordatorios(){
     }).join('');}
   }
 
+  // Chayas por concretar
+  const cc=getComprasConcretar();
+  const ccEl=document.getElementById('comprasConcretarList');
+  if(ccEl){
+    if(!cc.length){ccEl.innerHTML='<div class="empty" style="padding:20px 0;">Sin chayas por concretar</div>';}
+    else{ccEl.innerHTML=cc.map(c=>{
+      const href=c.link?(c.link.startsWith('http')?c.link:'https://instagram.com/'+c.link.replace('@','')):'';
+      const linkHtml=href?'<a href="'+href+'" target="_blank" class="rv-link">'+c.link+'</a>':'';
+      const cantHtml=c.cantidad?'<div style="font-family:var(--font-display);font-size:18px;color:#a855f7;">'+c.cantidad.toLocaleString('es-CL')+' <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">cartas</span></div>':'';
+      const descHtml=c.desc?'<div style="font-size:12px;color:var(--muted);margin-top:3px;">'+c.desc+'</div>':'';
+      const nombreHtml=c.nombre||(c.link?c.link.replace('https://www.instagram.com/','@').replace(/\/$/,''):'Sin nombre');
+      return '<div class="rv-item" style="border-color:rgba(168,85,247,.2);"><div class="rv-item-info"><div class="rv-nombre">'+nombreHtml+'</div>'+linkHtml+cantHtml+descHtml+'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+c.fecha+'</div></div><div class="rv-actions"><button class="rv-btn-del" onclick="eliminarCompraConcretar(\''+c.id+'\')" title="Eliminar">×</button></div></div>';
+    }).join('');}
+  }
+
   // Badge
-  const total=vp.length+vc.length+pendientes.length;
+  const total=vp.length+vc.length+pendientes.length+cc.length;
   const badge=document.getElementById('badgeRecordatorios');
   if(badge){badge.textContent=total;badge.style.display=total>0?'inline-block':'none';}
 }
