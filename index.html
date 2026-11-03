@@ -641,7 +641,22 @@ textarea{resize:vertical;min-height:110px;}
     <div id="chayasContador" style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;"></div>
     <div class="form-grid" style="margin-bottom:12px;">
       <div class="form-group"><label>Nombre / quién la ofrece</label><input type="text" id="ccNombre" placeholder="Ej: Carlos Gutiérrez o @usuario"></div>
-      <div class="form-group"><label>Cantidad de cartas</label><input type="number" id="ccCantidad" placeholder="Ej: 350" min="0"></div>
+      <div class="form-group"><label>Canal</label>
+        <select id="ccCanal">
+          <option value="">— Detectar del link —</option>
+          <option>Instagram</option>
+          <option>Página Facebook</option>
+          <option>Messenger</option>
+          <option>WhatsApp Business</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group full"><label>Cantidad de cartas</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="number" id="ccCantidad" placeholder="Ej: 350" min="0" style="flex:1;min-width:120px;">
+          <button type="button" class="btn btn-secondary btn-sm" id="ccEsperandoBtn" onclick="toggleEsperandoChaya()" style="white-space:nowrap;">⏳ Esperando conteo</button>
+        </div>
+      </div>
       <div class="form-group full"><label>Link de la persona</label><input type="text" id="ccLink" placeholder="https://instagram.com/... o @usuario"></div>
       <div class="form-group full"><label>Descripción</label><input type="text" id="ccDesc" placeholder="Ej: 5 cajas de ETB, lote completo, incluye hits..." onkeydown="if(event.key==='Enter')agregarCompraConcretar()"></div>
     </div>
@@ -2586,25 +2601,131 @@ function eliminarVentaConcretar(id){
   toast('Eliminada');
 }
 
+// Detecta el canal a partir del link si no se eligió uno
+function detectarCanalChaya(link){
+  const l=(link||'').toLowerCase();
+  if(l.includes('instagram')||l.startsWith('@'))return 'Instagram';
+  if(l.includes('wa.me')||l.includes('whatsapp'))return 'WhatsApp Business';
+  if(l.includes('m.me')||l.includes('messenger'))return 'Messenger';
+  if(l.includes('facebook')||l.includes('fb.com'))return 'Página Facebook';
+  return '';
+}
+// Badge del canal (usa los mismos estilos que las ventas)
+function badgeCanalChaya(canal){
+  if(!canal)return '';
+  const m={'Instagram':'b-ig','Página Facebook':'b-fb','Messenger':'b-fb','WhatsApp Business':'b-wa'};
+  const ico={'Instagram':'📷','Página Facebook':'📘','Messenger':'💬','WhatsApp Business':'🟢'};
+  return '<span class="badge '+(m[canal]||'b-otro')+'" style="margin-left:6px;vertical-align:middle;">'+(ico[canal]||'')+' '+canal+'</span>';
+}
+
+// Botón "esperando conteo" del formulario
+let chayaEsperando=false;
+function toggleEsperandoChaya(){
+  chayaEsperando=!chayaEsperando;
+  const btn=document.getElementById('ccEsperandoBtn');
+  const inp=document.getElementById('ccCantidad');
+  if(chayaEsperando){
+    inp.value='';inp.disabled=true;inp.placeholder='Por confirmar — esperando conteo';
+    btn.style.background='rgba(241,192,53,.18)';btn.style.borderColor='rgba(241,192,53,.5)';btn.style.color='var(--accent2)';
+    btn.textContent='⏳ Esperando conteo ✓';
+  }else{
+    inp.disabled=false;inp.placeholder='Ej: 350';
+    btn.style.background='';btn.style.borderColor='';btn.style.color='';
+    btn.textContent='⏳ Esperando conteo';
+  }
+}
+
 function agregarCompraConcretar(){
   const nombre=document.getElementById('ccNombre').value.trim();
   const link=document.getElementById('ccLink').value.trim();
-  const cantidad=parseInt(document.getElementById('ccCantidad').value)||0;
+  const cantidad=chayaEsperando?0:(parseInt(document.getElementById('ccCantidad').value)||0);
   const desc=document.getElementById('ccDesc').value.trim();
+  const canal=document.getElementById('ccCanal').value||detectarCanalChaya(link);
   if(!nombre&&!link)return toast('Ingresa el nombre o el link de la persona');
-  if(!desc&&!cantidad)return toast('Ingresa la cantidad o una descripción');
+  if(!desc&&!cantidad&&!chayaEsperando)return toast('Ingresa la cantidad, marca "esperando conteo" o escribe una descripción');
   const cc=getComprasConcretar();
-  cc.unshift({id:'CC'+Date.now(),nombre,link,cantidad,desc,fecha:new Date().toISOString().split('T')[0]});
+  cc.unshift({id:'CC'+Date.now(),nombre,link,canal,cantidad,esperando:chayaEsperando,desc,fecha:new Date().toISOString().split('T')[0]});
   setComprasConcretar(cc);
   ['ccNombre','ccLink','ccCantidad','ccDesc'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('ccCanal').value='';
+  if(chayaEsperando)toggleEsperandoChaya();
   renderRecordatorios();
   toast('✓ Chaya anotada');
 }
 
 function eliminarCompraConcretar(id){
+  const c=getComprasConcretar().find(x=>x.id===id);
+  if(c&&!confirm('¿Eliminar esta chaya?\n\n'+(c.nombre||c.link||'')+(c.cantidad?' — '+c.cantidad.toLocaleString('es-CL')+' cartas':'')))return;
   setComprasConcretar(getComprasConcretar().filter(c=>c.id!==id));
   renderRecordatorios();
   toast('Eliminada');
+}
+
+// Marca / desmarca una chaya como COMPRADA (las compradas suman al contador real)
+function toggleCompradaChaya(id){
+  const cc=getComprasConcretar();
+  const c=cc.find(x=>x.id===id);
+  if(!c)return;
+  if(!c.comprado){
+    if(c.esperando||!(parseInt(c.cantidad)||0)){
+      return toast('Primero ingresa la cantidad real de cartas (✏️ Editar)');
+    }
+    c.comprado=true;
+    c.fechaCompra=new Date().toISOString().split('T')[0];
+  }else{
+    if(!confirm('¿Marcar esta chaya como NO comprada? Dejará de sumar al contador real.'))return;
+    c.comprado=false;
+    delete c.fechaCompra;
+  }
+  setComprasConcretar(cc);
+  renderRecordatorios();
+  toast(c.comprado?'✓ Comprada — '+c.cantidad.toLocaleString('es-CL')+' cartas sumadas al real':'Marcada como pendiente');
+}
+
+/* ── EDICIÓN EN LÍNEA DE UNA CHAYA ── */
+function editarChaya(id){
+  const d=document.getElementById('cc-disp-'+id);
+  const e=document.getElementById('cc-edit-'+id);
+  if(d&&e){d.style.display='none';e.style.display='block';const i=document.getElementById('cc-cant-'+id);if(i&&!i.disabled)i.focus();}
+}
+function cancelarEditarChaya(id){
+  const d=document.getElementById('cc-disp-'+id);
+  const e=document.getElementById('cc-edit-'+id);
+  if(d&&e){d.style.display='block';e.style.display='none';}
+  renderRecordatorios();
+}
+// Alterna "esperando conteo" dentro del editor de una chaya ya guardada
+function toggleEsperandoEdit(id){
+  const inp=document.getElementById('cc-cant-'+id);
+  const btn=document.getElementById('cc-esp-'+id);
+  if(!inp||!btn)return;
+  const activo=btn.dataset.activo==='1';
+  btn.dataset.activo=activo?'0':'1';
+  if(!activo){
+    inp.value='';inp.disabled=true;inp.placeholder='Por confirmar';
+    btn.style.background='rgba(241,192,53,.18)';btn.style.borderColor='rgba(241,192,53,.5)';btn.style.color='var(--accent2)';
+    btn.textContent='⏳ Esperando ✓';
+  }else{
+    inp.disabled=false;inp.placeholder='Ej: 350';
+    btn.style.background='';btn.style.borderColor='';btn.style.color='';
+    btn.textContent='⏳ Esperando';
+    inp.focus();
+  }
+}
+function guardarChaya(id){
+  const cc=getComprasConcretar();
+  const c=cc.find(x=>x.id===id);
+  if(!c)return;
+  const esperando=document.getElementById('cc-esp-'+id).dataset.activo==='1';
+  c.nombre=document.getElementById('cc-nom-'+id).value.trim();
+  c.link=document.getElementById('cc-link-'+id).value.trim();
+  c.canal=document.getElementById('cc-canal-'+id).value;
+  c.desc=document.getElementById('cc-desc-'+id).value.trim();
+  c.esperando=esperando;
+  c.cantidad=esperando?0:(parseInt(document.getElementById('cc-cant-'+id).value)||0);
+  setComprasConcretar(cc);
+  renderRecordatorios();
+  toast('✓ Chaya actualizada');
 }
 
 function agregarTarea(){
@@ -2673,38 +2794,95 @@ function renderRecordatorios(){
   if(ccEl){
     if(!cc.length){ccEl.innerHTML='<div class="empty" style="padding:20px 0;">Sin chayas por concretar</div>';}
     else{ccEl.innerHTML=cc.map(c=>{
+      const canal=c.canal||detectarCanalChaya(c.link);
       const href=c.link?(c.link.startsWith('http')?c.link:'https://instagram.com/'+c.link.replace('@','')):'';
       const linkHtml=href?'<a href="'+href+'" target="_blank" class="rv-link">'+c.link+'</a>':'';
-      const cantHtml=c.cantidad?'<div style="font-family:var(--font-display);font-size:18px;color:#a855f7;">'+c.cantidad.toLocaleString('es-CL')+' <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">cartas</span></div>':'';
+      const cantHtml=c.esperando
+        ?'<div style="display:inline-block;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(241,192,53,.12);color:var(--accent2);border:1px solid rgba(241,192,53,.3);margin-top:4px;">⏳ Esperando conteo</div>'
+        :(c.cantidad?'<div style="font-family:var(--font-display);font-size:18px;color:#a855f7;">'+c.cantidad.toLocaleString('es-CL')+' <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">cartas</span></div>':'');
       const descHtml=c.desc?'<div style="font-size:12px;color:var(--muted);margin-top:3px;">'+c.desc+'</div>':'';
       const nombreHtml=c.nombre||(c.link?c.link.replace('https://www.instagram.com/','@').replace(/\/$/,''):'Sin nombre');
-      return '<div class="rv-item" style="border-color:rgba(168,85,247,.2);"><div class="rv-item-info"><div class="rv-nombre">'+nombreHtml+'</div>'+linkHtml+cantHtml+descHtml+'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+c.fecha+'</div></div><div class="rv-actions"><button class="rv-btn-del" onclick="eliminarCompraConcretar(\''+c.id+'\')" title="Eliminar">×</button></div></div>';
+      const opts=['Instagram','Página Facebook','Messenger','WhatsApp Business','Otro']
+        .map(o=>'<option'+(canal===o?' selected':'')+'>'+o+'</option>').join('');
+      const espAct=c.esperando?'1':'0';
+      const estiloEsp=c.esperando?'background:rgba(241,192,53,.18);border-color:rgba(241,192,53,.5);color:var(--accent2);':'';
+      const editor=
+        '<div id="cc-edit-'+c.id+'" style="display:none;margin-top:4px;">'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+            '<input type="text" id="cc-nom-'+c.id+'" value="'+escAttr(c.nombre||'')+'" placeholder="Nombre" style="padding:7px 10px;font-size:12px;">'+
+            '<select id="cc-canal-'+c.id+'" style="padding:7px 10px;font-size:12px;"><option value="">— Sin canal —</option>'+opts+'</select>'+
+            '<input type="text" id="cc-link-'+c.id+'" value="'+escAttr(c.link||'')+'" placeholder="Link" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
+            '<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
+              '<input type="number" id="cc-cant-'+c.id+'" value="'+(c.esperando?'':(c.cantidad||''))+'" min="0" placeholder="'+(c.esperando?'Por confirmar':'Ej: 350')+'"'+(c.esperando?' disabled':'')+' style="flex:1;min-width:110px;padding:7px 10px;font-size:12px;">'+
+              '<button type="button" class="btn btn-secondary btn-sm" id="cc-esp-'+c.id+'" data-activo="'+espAct+'" onclick="toggleEsperandoEdit(\''+c.id+'\')" style="white-space:nowrap;'+estiloEsp+'">⏳ Esperando'+(c.esperando?' ✓':'')+'</button>'+
+            '</div>'+
+            '<input type="text" id="cc-desc-'+c.id+'" value="'+escAttr(c.desc||'')+'" placeholder="Descripción" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
+          '</div>'+
+          '<div style="display:flex;gap:6px;">'+
+            '<button class="btn btn-primary btn-sm" onclick="guardarChaya(\''+c.id+'\')" style="font-size:10px;">💾 Guardar</button>'+
+            '<button class="btn btn-secondary btn-sm" onclick="cancelarEditarChaya(\''+c.id+'\')" style="font-size:10px;">✕ Cancelar</button>'+
+          '</div>'+
+        '</div>';
+      const badgeComprado=c.comprado
+        ?'<span class="badge" style="background:rgba(74,222,128,.14);color:#4ade80;border:1px solid rgba(74,222,128,.35);margin-left:6px;vertical-align:middle;">✓ Comprada</span>'
+        :'';
+      const btnComprado=c.comprado
+        ?'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como no comprada" style="border-color:rgba(74,222,128,.5);color:#4ade80;">✓ Comprada</button>'
+        :'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como comprada">💰 Comprado</button>';
+      const fechaHtml=c.fecha+(c.comprado&&c.fechaCompra?' · comprada el '+c.fechaCompra:'');
+      const borde=c.comprado?'rgba(74,222,128,.35)':'rgba(168,85,247,.2)';
+      const fondo=c.comprado?'background:rgba(74,222,128,.04);':'';
+      return '<div class="rv-item" style="border-color:'+borde+';'+fondo+'align-items:stretch;">'+
+        '<div class="rv-item-info">'+
+          '<div id="cc-disp-'+c.id+'">'+
+            '<div class="rv-nombre">'+nombreHtml+badgeCanalChaya(canal)+badgeComprado+'</div>'+
+            linkHtml+cantHtml+descHtml+
+            '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+fechaHtml+'</div>'+
+          '</div>'+
+          editor+
+        '</div>'+
+        '<div class="rv-actions" style="flex-direction:column;gap:5px;align-items:flex-end;">'+
+          btnComprado+
+          '<button class="rv-btn-ok" onclick="editarChaya(\''+c.id+'\')" title="Editar">✏️ Editar</button>'+
+          '<button class="rv-btn-del" onclick="eliminarCompraConcretar(\''+c.id+'\')" title="Eliminar">×</button>'+
+        '</div>'+
+      '</div>';
     }).join('');}
   }
 
-  // Contador de cartas: total acumulado vs meta
+  // Contador de cartas: TEÓRICO (todo lo anotado) y REAL (solo lo comprado)
   const contEl=document.getElementById('chayasContador');
   if(contEl){
-    const totalCartas=cc.reduce((a,c)=>a+(parseInt(c.cantidad)||0),0);
-    const pct=Math.min(100,(totalCartas/META_CHAYAS)*100);
-    const falta=Math.max(0,META_CHAYAS-totalCartas);
     const nf=n=>Math.round(n).toLocaleString('es-CL');
-    const colorBarra=pct>=100?'var(--accent)':'#a855f7';
+    const cant=c=>(c.esperando?0:(parseInt(c.cantidad)||0));
+    const totalTeorico=cc.reduce((a,c)=>a+cant(c),0);
+    const compradas=cc.filter(c=>c.comprado);
+    const totalReal=compradas.reduce((a,c)=>a+cant(c),0);
+    const nEsperando=cc.filter(c=>c.esperando).length;
+    const pctT=Math.min(100,(totalTeorico/META_CHAYAS)*100);
+    const pctR=Math.min(100,(totalReal/META_CHAYAS)*100);
+    const faltaR=Math.max(0,META_CHAYAS-totalReal);
+    const colorR=pctR>=100?'var(--accent)':'#4ade80';
+    const colorT='#a855f7';
+    const bloque=(titulo,sub,valor,pct,color,pie)=>
+      '<div style="flex:1;min-width:190px;">'+
+        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">'+titulo+' <span style="color:var(--muted2);letter-spacing:.5px;">'+sub+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;">'+
+          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+color+';letter-spacing:1px;">'+nf(valor)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(META_CHAYAS)+'</span></div>'+
+          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+color+';">'+pct.toFixed(1)+'%</div>'+
+        '</div>'+
+        '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;">'+
+          '<div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:100px;transition:width .5s;"></div>'+
+        '</div>'+
+        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pie+'</div>'+
+      '</div>';
     contEl.innerHTML=
-      '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
-        '<div>'+
-          '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Cartas acumuladas</div>'+
-          '<div style="font-family:var(--font-display);font-size:34px;line-height:1;color:'+colorBarra+';letter-spacing:1px;">'+nf(totalCartas)+' <span style="font-size:16px;color:var(--muted);">/ '+nf(META_CHAYAS)+'</span></div>'+
-        '</div>'+
-        '<div style="text-align:right;">'+
-          '<div style="font-family:var(--font-display);font-size:26px;line-height:1;color:'+colorBarra+';">'+pct.toFixed(1)+'%</div>'+
-          '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:3px;">'+(falta>0?'faltan '+nf(falta):'¡meta cumplida!')+'</div>'+
-        '</div>'+
-      '</div>'+
-      '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;">'+
-        '<div style="height:100%;width:'+pct+'%;background:'+colorBarra+';border-radius:100px;transition:width .5s;"></div>'+
-      '</div>'+
-      '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:8px;">'+cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(cc.length?' · promedio '+nf(totalCartas/cc.length)+' cartas c/u':'')+'</div>';
+      '<div style="display:flex;gap:18px;flex-wrap:wrap;">'+
+        bloque('💰 Comprado (real)','· cartas ya compradas',totalReal,pctR,colorR,
+          compradas.length+' chaya'+(compradas.length!==1?'s':'')+' comprada'+(compradas.length!==1?'s':'')+(faltaR>0?' · faltan '+nf(faltaR):' · ¡meta cumplida!'))+
+        bloque('📋 Anotado (teórico)','· todo lo que hay en la lista',totalTeorico,pctT,colorT,
+          cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(nEsperando?' · ⏳ '+nEsperando+' esperando conteo':''))+
+      '</div>';
   }
 
   // Badge
