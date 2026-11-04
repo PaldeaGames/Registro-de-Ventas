@@ -520,6 +520,13 @@ textarea{resize:vertical;min-height:110px;}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
     <div class="section-title" style="margin-bottom:0;">VENTAS</div>
   </div>
+  <div class="card" style="padding:14px 16px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="ventasSearch" placeholder="🔍 Buscar en ventas — nombre, carta, código, ciudad, monto, tag, nota..." oninput="buscarVentas(this.value)" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:var(--font-body);font-size:14px;outline:none;">
+      <button class="btn btn-secondary btn-sm" onclick="limpiarBusquedaVentas()" title="Limpiar búsqueda" style="white-space:nowrap;">✕</button>
+    </div>
+    <div id="ventasSearchInfo" style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:7px;display:none;"></div>
+  </div>
   <div class="filters-row">
     <button class="filter-btn active" onclick="filtrarV('todas',this)">Todas</button>
     <button class="filter-btn" onclick="filtrarV('pendientes',this)">Pendientes</button>
@@ -1770,7 +1777,21 @@ function renderVentas(){
   if(filtroV==='envio')lista=lista.filter(v=>v.envio==='si'||v.envio==='propio');
   if(filtroV==='retiro')lista=lista.filter(v=>v.envio==='no');
   if(filtroV==='enviado')lista=lista.filter(v=>v.estado==='enviado');
-  if(!lista.length){el.innerHTML='<div class="empty">SIN VENTAS</div>';return;}
+  // Buscador por palabras clave: busca en TODOS los datos de cada venta
+  const qV=normTxt(busquedaVentas);
+  if(qV){
+    const palabras=qV.split(/\s+/).filter(Boolean);
+    lista=lista.filter(v=>{
+      const blob=normTxt(textoVenta(v));
+      return palabras.every(p=>blob.includes(p));
+    });
+  }
+  const vInfoEl=document.getElementById('ventasSearchInfo');
+  if(vInfoEl){
+    if(qV){vInfoEl.style.display='block';vInfoEl.textContent=lista.length+' resultado'+(lista.length!==1?'s':'')+' para "'+busquedaVentas.trim()+'"';}
+    else{vInfoEl.style.display='none';vInfoEl.textContent='';}
+  }
+  if(!lista.length){el.innerHTML='<div class="empty">'+(qV?'SIN RESULTADOS PARA "'+busquedaVentas.trim().toUpperCase()+'"':'SIN VENTAS')+'</div>';return;}
   el.innerHTML=lista.map(v=>{
     const eb=v.estado==='enviado'?'<span class="badge b-enviado">&#10003; Enviado</span>':
       v.estado==='entregado'?'<span class="badge b-entregado">&#10003; Entregado</span>':
@@ -2032,6 +2053,19 @@ function buscarPendientes(val){
   busquedaPend=val||'';
   renderPendientes();
 }
+/* ── BUSCADOR DE VENTAS ── */
+let busquedaVentas='';
+function buscarVentas(val){
+  busquedaVentas=val||'';
+  renderVentas();
+}
+function limpiarBusquedaVentas(){
+  busquedaVentas='';
+  const inp=document.getElementById('ventasSearch');
+  if(inp)inp.value='';
+  renderVentas();
+}
+
 function limpiarBusquedaPend(){
   busquedaPend='';
   const inp=document.getElementById('pendSearch');
@@ -2544,7 +2578,9 @@ function getVentasPend(){return JSON.parse(localStorage.getItem('pdg_ventas_pend
 function setVentasPend(v){localStorage.setItem('pdg_ventas_pend',JSON.stringify(v));}
 function getVentasConcretar(){return JSON.parse(localStorage.getItem('pdg_ventas_concretar')||'[]');}
 function setVentasConcretar(v){localStorage.setItem('pdg_ventas_concretar',JSON.stringify(v));}
-const META_CHAYAS=55000; // meta de cartas a juntar
+const META_CHAYAS=55000;        // meta de cartas a juntar
+const PRECIO_OBJETIVO=12;       // precio objetivo por carta ($)
+const PRESUPUESTO_CHAYAS=META_CHAYAS*PRECIO_OBJETIVO; // 660.000
 function getComprasConcretar(){return JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');}
 function setComprasConcretar(v){localStorage.setItem('pdg_compras_concretar',JSON.stringify(v));}
 function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
@@ -2670,6 +2706,10 @@ function toggleCompradaChaya(id){
     if(c.esperando||!(parseInt(c.cantidad)||0)){
       return toast('Primero ingresa la cantidad real de cartas (✏️ Editar)');
     }
+    const sug=c.cantidad*PRECIO_OBJETIVO;
+    const r=prompt('¿Cuánto pagaste por estas '+c.cantidad.toLocaleString('es-CL')+' cartas?\n\n(a $'+PRECIO_OBJETIVO+' por carta serían $'+sug.toLocaleString('es-CL')+')',''+(c.valor||sug));
+    if(r===null)return;
+    c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
     c.comprado=true;
     c.fechaCompra=new Date().toISOString().split('T')[0];
   }else{
@@ -2679,7 +2719,21 @@ function toggleCompradaChaya(id){
   }
   setComprasConcretar(cc);
   renderRecordatorios();
-  toast(c.comprado?'✓ Comprada — '+c.cantidad.toLocaleString('es-CL')+' cartas sumadas al real':'Marcada como pendiente');
+  toast(c.comprado?'✓ Comprada — '+c.cantidad.toLocaleString('es-CL')+' cartas · '+fmt(c.valor||0):'Marcada como pendiente');
+}
+
+// Cambiar solo el valor pagado de una chaya ya comprada
+function editarValorChaya(id){
+  const cc=getComprasConcretar();
+  const c=cc.find(x=>x.id===id);
+  if(!c)return;
+  const cant=parseInt(c.cantidad)||0;
+  const r=prompt('Valor pagado por '+cant.toLocaleString('es-CL')+' cartas'+(cant?' (a $'+PRECIO_OBJETIVO+' c/u serían $'+(cant*PRECIO_OBJETIVO).toLocaleString('es-CL')+')':'')+':',''+(c.valor||''));
+  if(r===null)return;
+  c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
+  setComprasConcretar(cc);
+  renderRecordatorios();
+  toast('✓ Valor actualizado — '+fmt(c.valor));
 }
 
 /* ── EDICIÓN EN LÍNEA DE UNA CHAYA ── */
@@ -2721,6 +2775,8 @@ function guardarChaya(id){
   c.link=document.getElementById('cc-link-'+id).value.trim();
   c.canal=document.getElementById('cc-canal-'+id).value;
   c.desc=document.getElementById('cc-desc-'+id).value.trim();
+  const vEl=document.getElementById('cc-valor-'+id);
+  if(vEl)c.valor=Math.max(0,parseInt(vEl.value)||0);
   c.esperando=esperando;
   c.cantidad=esperando?0:(parseInt(document.getElementById('cc-cant-'+id).value)||0);
   setComprasConcretar(cc);
@@ -2816,6 +2872,7 @@ function renderRecordatorios(){
               '<input type="number" id="cc-cant-'+c.id+'" value="'+(c.esperando?'':(c.cantidad||''))+'" min="0" placeholder="'+(c.esperando?'Por confirmar':'Ej: 350')+'"'+(c.esperando?' disabled':'')+' style="flex:1;min-width:110px;padding:7px 10px;font-size:12px;">'+
               '<button type="button" class="btn btn-secondary btn-sm" id="cc-esp-'+c.id+'" data-activo="'+espAct+'" onclick="toggleEsperandoEdit(\''+c.id+'\')" style="white-space:nowrap;'+estiloEsp+'">⏳ Esperando'+(c.esperando?' ✓':'')+'</button>'+
             '</div>'+
+            '<input type="number" id="cc-valor-'+c.id+'" value="'+(c.valor||'')+'" min="0" placeholder="Valor pagado $" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
             '<input type="text" id="cc-desc-'+c.id+'" value="'+escAttr(c.desc||'')+'" placeholder="Descripción" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
           '</div>'+
           '<div style="display:flex;gap:6px;">'+
@@ -2829,6 +2886,19 @@ function renderRecordatorios(){
       const btnComprado=c.comprado
         ?'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como no comprada" style="border-color:rgba(74,222,128,.5);color:#4ade80;">✓ Comprada</button>'
         :'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como comprada">💰 Comprado</button>';
+      const btnValor=c.comprado
+        ?'<button class="rv-btn-ok" onclick="editarValorChaya(\''+c.id+'\')" title="Cambiar el valor pagado" style="border-color:rgba(200,241,53,.4);color:var(--accent);">💵 '+(c.valor?fmt(c.valor):'Poner valor')+'</button>'
+        :'';
+      // Valor pagado y precio por carta
+      const cantNum=c.esperando?0:(parseInt(c.cantidad)||0);
+      const ppc=(c.comprado&&c.valor&&cantNum)?(c.valor/cantNum):null;
+      const colorPpc=ppc===null?'':(ppc<=PRECIO_OBJETIVO?'#4ade80':'var(--red)');
+      const valorHtml=c.comprado
+        ?'<div style="font-family:var(--font-mono);font-size:11px;margin-top:4px;">'+
+           (c.valor?'<span style="color:var(--accent);">'+fmt(c.valor)+'</span>':'<span style="color:var(--accent2);">sin valor aún</span>')+
+           (ppc!==null?' <span style="color:'+colorPpc+';">· $'+ppc.toFixed(1).replace('.0','')+' por carta</span> <span style="color:var(--muted2);">(objetivo $'+PRECIO_OBJETIVO+')</span>':'')+
+         '</div>'
+        :'';
       const fechaHtml=c.fecha+(c.comprado&&c.fechaCompra?' · comprada el '+c.fechaCompra:'');
       const borde=c.comprado?'rgba(74,222,128,.35)':'rgba(168,85,247,.2)';
       const fondo=c.comprado?'background:rgba(74,222,128,.04);':'';
@@ -2836,13 +2906,13 @@ function renderRecordatorios(){
         '<div class="rv-item-info">'+
           '<div id="cc-disp-'+c.id+'">'+
             '<div class="rv-nombre">'+nombreHtml+badgeCanalChaya(canal)+badgeComprado+'</div>'+
-            linkHtml+cantHtml+descHtml+
+            linkHtml+cantHtml+valorHtml+descHtml+
             '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+fechaHtml+'</div>'+
           '</div>'+
           editor+
         '</div>'+
         '<div class="rv-actions" style="flex-direction:column;gap:5px;align-items:flex-end;">'+
-          btnComprado+
+          btnComprado+btnValor+
           '<button class="rv-btn-ok" onclick="editarChaya(\''+c.id+'\')" title="Editar">✏️ Editar</button>'+
           '<button class="rv-btn-del" onclick="eliminarCompraConcretar(\''+c.id+'\')" title="Eliminar">×</button>'+
         '</div>'+
@@ -2876,12 +2946,44 @@ function renderRecordatorios(){
         '</div>'+
         '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pie+'</div>'+
       '</div>';
+    // Gasto: lo pagado vs el presupuesto objetivo (55.000 × $12 = $660.000)
+    const gasto=compradas.reduce((a,c)=>a+(parseInt(c.valor)||0),0);
+    const pctG=Math.min(100,(gasto/PRESUPUESTO_CHAYAS)*100);
+    const ppcReal=totalReal?(gasto/totalReal):0;
+    // Al ritmo actual, cuánto costarían las 55.000
+    const proyeccion=ppcReal?Math.round(ppcReal*META_CHAYAS):0;
+    const sobre=proyeccion-PRESUPUESTO_CHAYAS;
+    const sinValor=compradas.filter(c=>!(parseInt(c.valor)||0)).length;
+    const bajoObjetivo=!ppcReal||ppcReal<=PRECIO_OBJETIVO;
+    const colorG=bajoObjetivo?'var(--accent)':'var(--red)';
+    // Lo que "debería" haber gastado para las cartas que ya lleva
+    const esperado=totalReal*PRECIO_OBJETIVO;
+    const dif=gasto-esperado;
+    let pieGasto;
+    if(!compradas.length)pieGasto='sin compras todavía · presupuesto '+nf(META_CHAYAS)+' × $'+PRECIO_OBJETIVO;
+    else pieGasto='$'+(ppcReal.toFixed(1).replace('.0',''))+' por carta (objetivo $'+PRECIO_OBJETIVO+')'+
+      (dif!==0?' · '+(dif>0?'<span style="color:var(--red);">'+nf(Math.abs(dif))+' sobre</span>':'<span style="color:var(--accent);">'+nf(Math.abs(dif))+' bajo</span>')+' lo esperado':' · justo en el objetivo')+
+      (sinValor?' <span style="color:var(--accent2);">· '+sinValor+' sin valor</span>':'');
     contEl.innerHTML=
       '<div style="display:flex;gap:18px;flex-wrap:wrap;">'+
         bloque('💰 Comprado (real)','· cartas ya compradas',totalReal,pctR,colorR,
           compradas.length+' chaya'+(compradas.length!==1?'s':'')+' comprada'+(compradas.length!==1?'s':'')+(faltaR>0?' · faltan '+nf(faltaR):' · ¡meta cumplida!'))+
         bloque('📋 Anotado (teórico)','· todo lo que hay en la lista',totalTeorico,pctT,colorT,
           cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(nEsperando?' · ⏳ '+nEsperando+' esperando conteo':''))+
+      '</div>'+
+      '<div style="border-top:1px solid rgba(168,85,247,.2);margin-top:14px;padding-top:12px;">'+
+        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">💵 Gasto <span style="color:var(--muted2);letter-spacing:.5px;">· presupuesto '+nf(META_CHAYAS)+' cartas a $'+PRECIO_OBJETIVO+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
+          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+colorG+';letter-spacing:1px;">'+fmt(gasto)+' <span style="font-size:14px;color:var(--muted);">/ '+fmt(PRESUPUESTO_CHAYAS)+'</span></div>'+
+          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+colorG+';">'+pctG.toFixed(1)+'%</div>'+
+        '</div>'+
+        '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;position:relative;">'+
+          '<div style="height:100%;width:'+pctG+'%;background:'+colorG+';border-radius:100px;transition:width .5s;"></div>'+
+          '<div style="position:absolute;top:-2px;bottom:-2px;left:'+pctR+'%;width:2px;background:var(--text);opacity:.55;" title="Avance en cartas: '+pctR.toFixed(1)+'%"></div>'+
+        '</div>'+
+        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pieGasto+'</div>'+
+        (proyeccion?'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">A este precio, las '+nf(META_CHAYAS)+' cartas saldrían '+fmt(proyeccion)+
+          (sobre>0?' <span style="color:var(--red);">('+fmt(sobre)+' sobre presupuesto)</span>':sobre<0?' <span style="color:var(--accent);">('+fmt(Math.abs(sobre))+' bajo presupuesto)</span>':'')+'</div>':'')+
       '</div>';
   }
 
