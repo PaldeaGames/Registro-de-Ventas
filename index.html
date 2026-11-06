@@ -664,6 +664,9 @@ textarea{resize:vertical;min-height:110px;}
           <button type="button" class="btn btn-secondary btn-sm" id="ccEsperandoBtn" onclick="toggleEsperandoChaya()" style="white-space:nowrap;">⏳ Esperando conteo</button>
         </div>
       </div>
+      <div class="form-group full"><label>Cantidad de energías <span style="color:var(--muted2);text-transform:none;letter-spacing:0;">(opcional · objetivo $3 c/u)</span></label>
+        <input type="number" id="ccEnergias" placeholder="Ej: 500" min="0">
+      </div>
       <div class="form-group full"><label>Link de la persona</label><input type="text" id="ccLink" placeholder="https://instagram.com/... o @usuario"></div>
       <div class="form-group full"><label>Descripción</label><input type="text" id="ccDesc" placeholder="Ej: 5 cajas de ETB, lote completo, incluye hits..." onkeydown="if(event.key==='Enter')agregarCompraConcretar()"></div>
     </div>
@@ -2581,6 +2584,18 @@ function setVentasConcretar(v){localStorage.setItem('pdg_ventas_concretar',JSON.
 const META_CHAYAS=55000;        // meta de cartas a juntar
 const PRECIO_OBJETIVO=12;       // precio objetivo por carta ($)
 const PRESUPUESTO_CHAYAS=META_CHAYAS*PRECIO_OBJETIVO; // 660.000
+const PRECIO_ENERGIA=3;         // precio objetivo por energía ($)
+// Meta de energías: editable con un click en el panel
+function getMetaEnergias(){return parseInt(localStorage.getItem('pdg_meta_energias'))||15000;}
+function setMetaEnergias(n){localStorage.setItem('pdg_meta_energias',String(n));}
+function cambiarMetaEnergias(){
+  const r=prompt('¿Cuántas energías querés juntar en total?\n\n(se usa solo para la barra de progreso de energías)',''+getMetaEnergias());
+  if(r===null)return;
+  const n=Math.max(1,parseInt(String(r).replace(/[^\d]/g,''))||0);
+  setMetaEnergias(n);
+  renderRecordatorios();
+  toast('✓ Meta de energías: '+n.toLocaleString('es-CL'));
+}
 function getComprasConcretar(){return JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');}
 function setComprasConcretar(v){localStorage.setItem('pdg_compras_concretar',JSON.stringify(v));}
 function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
@@ -2677,12 +2692,13 @@ function agregarCompraConcretar(){
   const cantidad=chayaEsperando?0:(parseInt(document.getElementById('ccCantidad').value)||0);
   const desc=document.getElementById('ccDesc').value.trim();
   const canal=document.getElementById('ccCanal').value||detectarCanalChaya(link);
+  const energias=parseInt(document.getElementById('ccEnergias').value)||0;
   if(!nombre&&!link)return toast('Ingresa el nombre o el link de la persona');
-  if(!desc&&!cantidad&&!chayaEsperando)return toast('Ingresa la cantidad, marca "esperando conteo" o escribe una descripción');
+  if(!desc&&!cantidad&&!energias&&!chayaEsperando)return toast('Ingresa cartas, energías, marca "esperando conteo" o escribe una descripción');
   const cc=getComprasConcretar();
-  cc.unshift({id:'CC'+Date.now(),nombre,link,canal,cantidad,esperando:chayaEsperando,desc,fecha:new Date().toISOString().split('T')[0]});
+  cc.unshift({id:'CC'+Date.now(),nombre,link,canal,cantidad,energias,esperando:chayaEsperando,desc,fecha:new Date().toISOString().split('T')[0]});
   setComprasConcretar(cc);
-  ['ccNombre','ccLink','ccCantidad','ccDesc'].forEach(i=>document.getElementById(i).value='');
+  ['ccNombre','ccLink','ccCantidad','ccEnergias','ccDesc'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('ccCanal').value='';
   if(chayaEsperando)toggleEsperandoChaya();
   renderRecordatorios();
@@ -2703,13 +2719,23 @@ function toggleCompradaChaya(id){
   const c=cc.find(x=>x.id===id);
   if(!c)return;
   if(!c.comprado){
-    if(c.esperando||!(parseInt(c.cantidad)||0)){
-      return toast('Primero ingresa la cantidad real de cartas (✏️ Editar)');
+    const cant=c.esperando?0:(parseInt(c.cantidad)||0);
+    const ener=parseInt(c.energias)||0;
+    if(!cant&&!ener){
+      return toast('Primero ingresa la cantidad real de cartas o energías (✏️ Editar)');
     }
-    const sug=c.cantidad*PRECIO_OBJETIVO;
-    const r=prompt('¿Cuánto pagaste por estas '+c.cantidad.toLocaleString('es-CL')+' cartas?\n\n(a $'+PRECIO_OBJETIVO+' por carta serían $'+sug.toLocaleString('es-CL')+')',''+(c.valor||sug));
-    if(r===null)return;
-    c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
+    if(cant){
+      const sug=cant*PRECIO_OBJETIVO;
+      const r=prompt('¿Cuánto pagaste por las '+cant.toLocaleString('es-CL')+' CARTAS?\n\n(a $'+PRECIO_OBJETIVO+' por carta serían $'+sug.toLocaleString('es-CL')+')',''+(c.valor||sug));
+      if(r===null)return;
+      c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
+    }else c.valor=0;
+    if(ener){
+      const sugE=ener*PRECIO_ENERGIA;
+      const rE=prompt('¿Cuánto pagaste por las '+ener.toLocaleString('es-CL')+' ENERGÍAS?\n\n(a $'+PRECIO_ENERGIA+' por energía serían $'+sugE.toLocaleString('es-CL')+')',''+(c.valorEnergias||sugE));
+      if(rE===null)return;
+      c.valorEnergias=Math.max(0,parseInt(String(rE).replace(/[^\d]/g,''))||0);
+    }else c.valorEnergias=0;
     c.comprado=true;
     c.fechaCompra=new Date().toISOString().split('T')[0];
   }else{
@@ -2719,7 +2745,12 @@ function toggleCompradaChaya(id){
   }
   setComprasConcretar(cc);
   renderRecordatorios();
-  toast(c.comprado?'✓ Comprada — '+c.cantidad.toLocaleString('es-CL')+' cartas · '+fmt(c.valor||0):'Marcada como pendiente');
+  if(c.comprado){
+    const ps=[];
+    if(parseInt(c.cantidad)||0)ps.push(c.cantidad.toLocaleString('es-CL')+' cartas '+fmt(c.valor||0));
+    if(parseInt(c.energias)||0)ps.push(c.energias.toLocaleString('es-CL')+' energías '+fmt(c.valorEnergias||0));
+    toast('✓ Comprada — '+ps.join(' · '));
+  }else toast('Marcada como pendiente');
 }
 
 // Cambiar solo el valor pagado de una chaya ya comprada
@@ -2728,12 +2759,21 @@ function editarValorChaya(id){
   const c=cc.find(x=>x.id===id);
   if(!c)return;
   const cant=parseInt(c.cantidad)||0;
-  const r=prompt('Valor pagado por '+cant.toLocaleString('es-CL')+' cartas'+(cant?' (a $'+PRECIO_OBJETIVO+' c/u serían $'+(cant*PRECIO_OBJETIVO).toLocaleString('es-CL')+')':'')+':',''+(c.valor||''));
-  if(r===null)return;
-  c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
+  const ener=parseInt(c.energias)||0;
+  if(cant){
+    const r=prompt('Valor pagado por las '+cant.toLocaleString('es-CL')+' CARTAS (a $'+PRECIO_OBJETIVO+' c/u serían $'+(cant*PRECIO_OBJETIVO).toLocaleString('es-CL')+'):',''+(c.valor||''));
+    if(r===null)return;
+    c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
+  }
+  if(ener){
+    const rE=prompt('Valor pagado por las '+ener.toLocaleString('es-CL')+' ENERGÍAS (a $'+PRECIO_ENERGIA+' c/u serían $'+(ener*PRECIO_ENERGIA).toLocaleString('es-CL')+'):',''+(c.valorEnergias||''));
+    if(rE===null)return;
+    c.valorEnergias=Math.max(0,parseInt(String(rE).replace(/[^\d]/g,''))||0);
+  }
+  if(!cant&&!ener)return toast('Esta chaya no tiene cartas ni energías ingresadas');
   setComprasConcretar(cc);
   renderRecordatorios();
-  toast('✓ Valor actualizado — '+fmt(c.valor));
+  toast('✓ Valores actualizados — total '+fmt((c.valor||0)+(c.valorEnergias||0)));
 }
 
 /* ── EDICIÓN EN LÍNEA DE UNA CHAYA ── */
@@ -2777,6 +2817,10 @@ function guardarChaya(id){
   c.desc=document.getElementById('cc-desc-'+id).value.trim();
   const vEl=document.getElementById('cc-valor-'+id);
   if(vEl)c.valor=Math.max(0,parseInt(vEl.value)||0);
+  const eEl=document.getElementById('cc-ener-'+id);
+  if(eEl)c.energias=Math.max(0,parseInt(eEl.value)||0);
+  const veEl=document.getElementById('cc-valorener-'+id);
+  if(veEl)c.valorEnergias=Math.max(0,parseInt(veEl.value)||0);
   c.esperando=esperando;
   c.cantidad=esperando?0:(parseInt(document.getElementById('cc-cant-'+id).value)||0);
   setComprasConcretar(cc);
@@ -2857,6 +2901,8 @@ function renderRecordatorios(){
         ?'<div style="display:inline-block;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:rgba(241,192,53,.12);color:var(--accent2);border:1px solid rgba(241,192,53,.3);margin-top:4px;">⏳ Esperando conteo</div>'
         :(c.cantidad?'<div style="font-family:var(--font-display);font-size:18px;color:#a855f7;">'+c.cantidad.toLocaleString('es-CL')+' <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">cartas</span></div>':'');
       const descHtml=c.desc?'<div style="font-size:12px;color:var(--muted);margin-top:3px;">'+c.desc+'</div>':'';
+      const enerNum=parseInt(c.energias)||0;
+      const enerHtml=enerNum?'<div style="font-family:var(--font-display);font-size:16px;color:var(--blue);margin-top:2px;">'+enerNum.toLocaleString('es-CL')+' <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">energías</span></div>':'';
       const nombreHtml=c.nombre||(c.link?c.link.replace('https://www.instagram.com/','@').replace(/\/$/,''):'Sin nombre');
       const opts=['Instagram','Página Facebook','Messenger','WhatsApp Business','Otro']
         .map(o=>'<option'+(canal===o?' selected':'')+'>'+o+'</option>').join('');
@@ -2872,7 +2918,9 @@ function renderRecordatorios(){
               '<input type="number" id="cc-cant-'+c.id+'" value="'+(c.esperando?'':(c.cantidad||''))+'" min="0" placeholder="'+(c.esperando?'Por confirmar':'Ej: 350')+'"'+(c.esperando?' disabled':'')+' style="flex:1;min-width:110px;padding:7px 10px;font-size:12px;">'+
               '<button type="button" class="btn btn-secondary btn-sm" id="cc-esp-'+c.id+'" data-activo="'+espAct+'" onclick="toggleEsperandoEdit(\''+c.id+'\')" style="white-space:nowrap;'+estiloEsp+'">⏳ Esperando'+(c.esperando?' ✓':'')+'</button>'+
             '</div>'+
-            '<input type="number" id="cc-valor-'+c.id+'" value="'+(c.valor||'')+'" min="0" placeholder="Valor pagado $" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
+            '<input type="number" id="cc-ener-'+c.id+'" value="'+(c.energias||'')+'" min="0" placeholder="Cantidad de energías" style="padding:7px 10px;font-size:12px;">'+
+            '<input type="number" id="cc-valorener-'+c.id+'" value="'+(c.valorEnergias||'')+'" min="0" placeholder="Valor energías $" style="padding:7px 10px;font-size:12px;">'+
+            '<input type="number" id="cc-valor-'+c.id+'" value="'+(c.valor||'')+'" min="0" placeholder="Valor cartas $" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
             '<input type="text" id="cc-desc-'+c.id+'" value="'+escAttr(c.desc||'')+'" placeholder="Descripción" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
           '</div>'+
           '<div style="display:flex;gap:6px;">'+
@@ -2887,18 +2935,28 @@ function renderRecordatorios(){
         ?'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como no comprada" style="border-color:rgba(74,222,128,.5);color:#4ade80;">✓ Comprada</button>'
         :'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como comprada">💰 Comprado</button>';
       const btnValor=c.comprado
-        ?'<button class="rv-btn-ok" onclick="editarValorChaya(\''+c.id+'\')" title="Cambiar el valor pagado" style="border-color:rgba(200,241,53,.4);color:var(--accent);">💵 '+(c.valor?fmt(c.valor):'Poner valor')+'</button>'
+        ?'<button class="rv-btn-ok" onclick="editarValorChaya(\''+c.id+'\')" title="Cambiar el valor pagado" style="border-color:rgba(200,241,53,.4);color:var(--accent);">💵 '+(((parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0))?fmt((parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0)):'Poner valor')+'</button>'
         :'';
       // Valor pagado y precio por carta
       const cantNum=c.esperando?0:(parseInt(c.cantidad)||0);
       const ppc=(c.comprado&&c.valor&&cantNum)?(c.valor/cantNum):null;
+      const ppe=(c.comprado&&c.valorEnergias&&enerNum)?(c.valorEnergias/enerNum):null;
       const colorPpc=ppc===null?'':(ppc<=PRECIO_OBJETIVO?'#4ade80':'var(--red)');
-      const valorHtml=c.comprado
-        ?'<div style="font-family:var(--font-mono);font-size:11px;margin-top:4px;">'+
-           (c.valor?'<span style="color:var(--accent);">'+fmt(c.valor)+'</span>':'<span style="color:var(--accent2);">sin valor aún</span>')+
-           (ppc!==null?' <span style="color:'+colorPpc+';">· $'+ppc.toFixed(1).replace('.0','')+' por carta</span> <span style="color:var(--muted2);">(objetivo $'+PRECIO_OBJETIVO+')</span>':'')+
-         '</div>'
-        :'';
+      const colorPpe=ppe===null?'':(ppe<=PRECIO_ENERGIA?'#4ade80':'var(--red)');
+      const u=n=>n.toFixed(1).replace('.0','');
+      let valorHtml='';
+      if(c.comprado){
+        const lineas=[];
+        if(cantNum)lineas.push('<span style="color:var(--muted);">cartas</span> '+
+          (c.valor?'<span style="color:var(--accent);">'+fmt(c.valor)+'</span>':'<span style="color:var(--accent2);">sin valor</span>')+
+          (ppc!==null?' <span style="color:'+colorPpc+';">· $'+u(ppc)+' c/u</span> <span style="color:var(--muted2);">(obj $'+PRECIO_OBJETIVO+')</span>':''));
+        if(enerNum)lineas.push('<span style="color:var(--muted);">energías</span> '+
+          (c.valorEnergias?'<span style="color:var(--blue);">'+fmt(c.valorEnergias)+'</span>':'<span style="color:var(--accent2);">sin valor</span>')+
+          (ppe!==null?' <span style="color:'+colorPpe+';">· $'+u(ppe)+' c/u</span> <span style="color:var(--muted2);">(obj $'+PRECIO_ENERGIA+')</span>':''));
+        const tot=(parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0);
+        if(lineas.length)valorHtml='<div style="font-family:var(--font-mono);font-size:11px;margin-top:4px;line-height:1.7;">'+lineas.join('<br>')+
+          (lineas.length>1&&tot?'<br><span style="color:var(--muted2);">total pagado '+fmt(tot)+'</span>':'')+'</div>';
+      }
       const fechaHtml=c.fecha+(c.comprado&&c.fechaCompra?' · comprada el '+c.fechaCompra:'');
       const borde=c.comprado?'rgba(74,222,128,.35)':'rgba(168,85,247,.2)';
       const fondo=c.comprado?'background:rgba(74,222,128,.04);':'';
@@ -2906,7 +2964,7 @@ function renderRecordatorios(){
         '<div class="rv-item-info">'+
           '<div id="cc-disp-'+c.id+'">'+
             '<div class="rv-nombre">'+nombreHtml+badgeCanalChaya(canal)+badgeComprado+'</div>'+
-            linkHtml+cantHtml+valorHtml+descHtml+
+            linkHtml+cantHtml+enerHtml+valorHtml+descHtml+
             '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">'+fechaHtml+'</div>'+
           '</div>'+
           editor+
@@ -2946,14 +3004,49 @@ function renderRecordatorios(){
         '</div>'+
         '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pie+'</div>'+
       '</div>';
-    // Gasto: lo pagado vs el presupuesto objetivo (55.000 × $12 = $660.000)
+    /* ── ENERGÍAS (aparte de las cartas, objetivo $3 c/u) ── */
+    const METAE=getMetaEnergias();
+    const ener=c=>(parseInt(c.energias)||0);
+    const enerTeorico=cc.reduce((a,c)=>a+ener(c),0);
+    const enerReal=compradas.reduce((a,c)=>a+ener(c),0);
+    const gastoEner=compradas.reduce((a,c)=>a+(parseInt(c.valorEnergias)||0),0);
+    const pctE=Math.min(100,(enerReal/METAE)*100);
+    const ppeReal=enerReal?(gastoEner/enerReal):0;
+    const colorE=ppeReal&&ppeReal>PRECIO_ENERGIA?'var(--red)':'var(--blue)';
+    const conEner=compradas.filter(c=>ener(c)>0).length;
+    let bloqueEnergias='';
+    if(enerTeorico||enerReal||gastoEner){
+      const faltaE=Math.max(0,METAE-enerReal);
+      bloqueEnergias=
+      '<div style="border-top:1px solid rgba(96,165,250,.2);margin-top:14px;padding-top:12px;">'+
+        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">\u26a1 Energ\u00edas compradas '+
+          '<span style="color:var(--muted2);letter-spacing:.5px;">\u00b7 objetivo $'+PRECIO_ENERGIA+' c/u</span> '+
+          '<button onclick="cambiarMetaEnergias()" title="Cambiar la meta de energ\u00edas" style="background:none;border:1px solid var(--border2);color:var(--muted);font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:1px 6px;border-radius:5px;cursor:pointer;margin-left:4px;">meta \u270e</button>'+
+        '</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
+          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+colorE+';letter-spacing:1px;">'+nf(enerReal)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(METAE)+'</span></div>'+
+          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+colorE+';">'+pctE.toFixed(1)+'%</div>'+
+        '</div>'+
+        '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;">'+
+          '<div style="height:100%;width:'+pctE+'%;background:'+colorE+';border-radius:100px;transition:width .5s;"></div>'+
+        '</div>'+
+        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+
+          (enerReal
+            ?conEner+' chaya'+(conEner!==1?'s':'')+' con energ\u00edas \u00b7 gasto '+fmt(gastoEner)+(ppeReal?' \u00b7 <span style="color:'+(ppeReal<=PRECIO_ENERGIA?'var(--accent)':'var(--red)')+';">$'+ppeReal.toFixed(1).replace('.0','')+' por energ\u00eda</span>':'')+(faltaE>0?' \u00b7 faltan '+nf(faltaE):' \u00b7 \u00a1meta cumplida!')
+            :nf(enerTeorico)+' energ\u00edas anotadas, ninguna comprada todav\u00eda')+
+        '</div>'+
+        (enerTeorico!==enerReal?'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">anotadas en total (te\u00f3rico): '+nf(enerTeorico)+'</div>':'')+
+      '</div>';
+    }
+
+    // Gasto EN CARTAS (las energias van en su propio bloque)
     const gasto=compradas.reduce((a,c)=>a+(parseInt(c.valor)||0),0);
     const pctG=Math.min(100,(gasto/PRESUPUESTO_CHAYAS)*100);
     const ppcReal=totalReal?(gasto/totalReal):0;
     // Al ritmo actual, cuánto costarían las 55.000
     const proyeccion=ppcReal?Math.round(ppcReal*META_CHAYAS):0;
     const sobre=proyeccion-PRESUPUESTO_CHAYAS;
-    const sinValor=compradas.filter(c=>!(parseInt(c.valor)||0)).length;
+    const sinValor=compradas.filter(c=>(c.esperando?0:(parseInt(c.cantidad)||0))>0&&!(parseInt(c.valor)||0)).length;
     const bajoObjetivo=!ppcReal||ppcReal<=PRECIO_OBJETIVO;
     const colorG=bajoObjetivo?'var(--accent)':'var(--red)';
     // Lo que "debería" haber gastado para las cartas que ya lleva
@@ -2971,8 +3064,9 @@ function renderRecordatorios(){
         bloque('📋 Anotado (teórico)','· todo lo que hay en la lista',totalTeorico,pctT,colorT,
           cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(nEsperando?' · ⏳ '+nEsperando+' esperando conteo':''))+
       '</div>'+
+      bloqueEnergias+
       '<div style="border-top:1px solid rgba(168,85,247,.2);margin-top:14px;padding-top:12px;">'+
-        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">💵 Gasto <span style="color:var(--muted2);letter-spacing:.5px;">· presupuesto '+nf(META_CHAYAS)+' cartas a $'+PRECIO_OBJETIVO+'</span></div>'+
+        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">💵 Gasto en cartas <span style="color:var(--muted2);letter-spacing:.5px;">· presupuesto '+nf(META_CHAYAS)+' cartas a $'+PRECIO_OBJETIVO+' (sin contar energías)</span></div>'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
           '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+colorG+';letter-spacing:1px;">'+fmt(gasto)+' <span style="font-size:14px;color:var(--muted);">/ '+fmt(PRESUPUESTO_CHAYAS)+'</span></div>'+
           '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+colorG+';">'+pctG.toFixed(1)+'%</div>'+
