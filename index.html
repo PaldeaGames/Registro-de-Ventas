@@ -2596,7 +2596,27 @@ function cambiarMetaEnergias(){
   renderRecordatorios();
   toast('✓ Meta de energías: '+n.toLocaleString('es-CL'));
 }
-function getComprasConcretar(){return JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');}
+function getComprasConcretar(){
+  const arr=JSON.parse(localStorage.getItem('pdg_compras_concretar')||'[]');
+  // Migra el esquema viejo: valor/valorEnergias -> valorManual/valorEnerManual solo si no coincide con el automático
+  let cambio=false;
+  arr.forEach(c=>{
+    if(c.valor!==undefined){
+      const auto=(c.esperando?0:(parseInt(c.cantidad)||0))*PRECIO_OBJETIVO;
+      const v=parseInt(c.valor)||0;
+      if(v&&v!==auto)c.valorManual=v;
+      delete c.valor;cambio=true;
+    }
+    if(c.valorEnergias!==undefined){
+      const autoE=(parseInt(c.energias)||0)*PRECIO_ENERGIA;
+      const v=parseInt(c.valorEnergias)||0;
+      if(v&&v!==autoE)c.valorEnerManual=v;
+      delete c.valorEnergias;cambio=true;
+    }
+  });
+  if(cambio)localStorage.setItem('pdg_compras_concretar',JSON.stringify(arr));
+  return arr;
+}
 function setComprasConcretar(v){localStorage.setItem('pdg_compras_concretar',JSON.stringify(v));}
 function getTareas(){return JSON.parse(localStorage.getItem('pdg_tareas')||'[]');}
 function setTareas(v){localStorage.setItem('pdg_tareas',JSON.stringify(v));}
@@ -2713,67 +2733,56 @@ function eliminarCompraConcretar(id){
   toast('Eliminada');
 }
 
+/* ── VALORES DE UNA CHAYA ──
+   Por defecto se calculan solos: cartas × $12 y energías × $3.
+   Solo se guarda un valor "manual" si lo escribís distinto (ej: compra de región).
+   El extra de envío se suma al costo de las cartas (sube el precio por carta). */
+function ccCartas(c){return c.esperando?0:(parseInt(c.cantidad)||0);}
+function ccEner(c){return parseInt(c.energias)||0;}
+function ccEnvio(c){return parseInt(c.envioExtra)||0;}
+function ccAutoCartas(c){return ccCartas(c)*PRECIO_OBJETIVO;}
+function ccAutoEner(c){return ccEner(c)*PRECIO_ENERGIA;}
+function ccEsManualCartas(c){return c.valorManual!==undefined&&c.valorManual!==null&&c.valorManual!=='';}
+function ccEsManualEner(c){return c.valorEnerManual!==undefined&&c.valorEnerManual!==null&&c.valorEnerManual!=='';}
+function ccValCartas(c){return ccEsManualCartas(c)?(parseInt(c.valorManual)||0):ccAutoCartas(c);}
+function ccValEner(c){return ccEsManualEner(c)?(parseInt(c.valorEnerManual)||0):ccAutoEner(c);}
+// Costo total de las cartas incluyendo el envío (lo que realmente te costaron)
+function ccCostoCartas(c){return ccValCartas(c)+ccEnvio(c);}
+function ccTotal(c){return ccCostoCartas(c)+ccValEner(c);}
+// Precio real por carta (con envío incluido)
+function ccPorCarta(c){const n=ccCartas(c);return n?ccCostoCartas(c)/n:0;}
+function ccPorEnergia(c){const n=ccEner(c);return n?ccValEner(c)/n:0;}
+
 // Marca / desmarca una chaya como COMPRADA (las compradas suman al contador real)
 function toggleCompradaChaya(id){
   const cc=getComprasConcretar();
   const c=cc.find(x=>x.id===id);
   if(!c)return;
   if(!c.comprado){
-    const cant=c.esperando?0:(parseInt(c.cantidad)||0);
-    const ener=parseInt(c.energias)||0;
-    if(!cant&&!ener){
-      return toast('Primero ingresa la cantidad real de cartas o energías (✏️ Editar)');
-    }
-    if(cant){
-      const sug=cant*PRECIO_OBJETIVO;
-      const r=prompt('¿Cuánto pagaste por las '+cant.toLocaleString('es-CL')+' CARTAS?\n\n(a $'+PRECIO_OBJETIVO+' por carta serían $'+sug.toLocaleString('es-CL')+')',''+(c.valor||sug));
-      if(r===null)return;
-      c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
-    }else c.valor=0;
-    if(ener){
-      const sugE=ener*PRECIO_ENERGIA;
-      const rE=prompt('¿Cuánto pagaste por las '+ener.toLocaleString('es-CL')+' ENERGÍAS?\n\n(a $'+PRECIO_ENERGIA+' por energía serían $'+sugE.toLocaleString('es-CL')+')',''+(c.valorEnergias||sugE));
-      if(rE===null)return;
-      c.valorEnergias=Math.max(0,parseInt(String(rE).replace(/[^\d]/g,''))||0);
-    }else c.valorEnergias=0;
+    if(!ccCartas(c)&&!ccEner(c))return toast('Primero ingresa la cantidad de cartas o energías (✏️ Editar)');
     c.comprado=true;
     c.fechaCompra=new Date().toISOString().split('T')[0];
+    setComprasConcretar(cc);
+    renderRecordatorios();
+    const ps=[];
+    if(ccCartas(c))ps.push(ccCartas(c).toLocaleString('es-CL')+' cartas '+fmt(ccValCartas(c)));
+    if(ccEner(c))ps.push(ccEner(c).toLocaleString('es-CL')+' energías '+fmt(ccValEner(c)));
+    toast('✓ Comprada — '+ps.join(' · ')+' = '+fmt(ccTotal(c)));
   }else{
-    if(!confirm('¿Marcar esta chaya como NO comprada? Dejará de sumar al contador real.'))return;
+    if(!confirm('¿Marcar esta chaya como NO comprada? Dejará de sumar a los contadores reales.'))return;
     c.comprado=false;
     delete c.fechaCompra;
+    setComprasConcretar(cc);
+    renderRecordatorios();
+    toast('Marcada como pendiente');
   }
-  setComprasConcretar(cc);
-  renderRecordatorios();
-  if(c.comprado){
-    const ps=[];
-    if(parseInt(c.cantidad)||0)ps.push(c.cantidad.toLocaleString('es-CL')+' cartas '+fmt(c.valor||0));
-    if(parseInt(c.energias)||0)ps.push(c.energias.toLocaleString('es-CL')+' energías '+fmt(c.valorEnergias||0));
-    toast('✓ Comprada — '+ps.join(' · '));
-  }else toast('Marcada como pendiente');
 }
 
-// Cambiar solo el valor pagado de una chaya ya comprada
+// El botón 💵 abre el editor con foco en los montos (envío / valor manual)
 function editarValorChaya(id){
-  const cc=getComprasConcretar();
-  const c=cc.find(x=>x.id===id);
-  if(!c)return;
-  const cant=parseInt(c.cantidad)||0;
-  const ener=parseInt(c.energias)||0;
-  if(cant){
-    const r=prompt('Valor pagado por las '+cant.toLocaleString('es-CL')+' CARTAS (a $'+PRECIO_OBJETIVO+' c/u serían $'+(cant*PRECIO_OBJETIVO).toLocaleString('es-CL')+'):',''+(c.valor||''));
-    if(r===null)return;
-    c.valor=Math.max(0,parseInt(String(r).replace(/[^\d]/g,''))||0);
-  }
-  if(ener){
-    const rE=prompt('Valor pagado por las '+ener.toLocaleString('es-CL')+' ENERGÍAS (a $'+PRECIO_ENERGIA+' c/u serían $'+(ener*PRECIO_ENERGIA).toLocaleString('es-CL')+'):',''+(c.valorEnergias||''));
-    if(rE===null)return;
-    c.valorEnergias=Math.max(0,parseInt(String(rE).replace(/[^\d]/g,''))||0);
-  }
-  if(!cant&&!ener)return toast('Esta chaya no tiene cartas ni energías ingresadas');
-  setComprasConcretar(cc);
-  renderRecordatorios();
-  toast('✓ Valores actualizados — total '+fmt((c.valor||0)+(c.valorEnergias||0)));
+  editarChaya(id);
+  const e=document.getElementById('cc-envio-'+id);
+  if(e)e.focus();
 }
 
 /* ── EDICIÓN EN LÍNEA DE UNA CHAYA ── */
@@ -2815,17 +2824,35 @@ function guardarChaya(id){
   c.link=document.getElementById('cc-link-'+id).value.trim();
   c.canal=document.getElementById('cc-canal-'+id).value;
   c.desc=document.getElementById('cc-desc-'+id).value.trim();
-  const vEl=document.getElementById('cc-valor-'+id);
-  if(vEl)c.valor=Math.max(0,parseInt(vEl.value)||0);
-  const eEl=document.getElementById('cc-ener-'+id);
-  if(eEl)c.energias=Math.max(0,parseInt(eEl.value)||0);
-  const veEl=document.getElementById('cc-valorener-'+id);
-  if(veEl)c.valorEnergias=Math.max(0,parseInt(veEl.value)||0);
   c.esperando=esperando;
   c.cantidad=esperando?0:(parseInt(document.getElementById('cc-cant-'+id).value)||0);
+  const eEl=document.getElementById('cc-ener-'+id);
+  if(eEl)c.energias=Math.max(0,parseInt(eEl.value)||0);
+  const envEl=document.getElementById('cc-envio-'+id);
+  if(envEl){const n=Math.max(0,parseInt(envEl.value)||0);if(n)c.envioExtra=n;else delete c.envioExtra;}
+  // Valores: campo vacío = automático ($12 / $3). Solo se guarda si lo escribís distinto.
+  const vEl=document.getElementById('cc-valor-'+id);
+  if(vEl){
+    const t=vEl.value.trim();
+    if(t===''){delete c.valorManual;}
+    else{
+      const n=Math.max(0,parseInt(t)||0);
+      if(n===ccAutoCartas(c))delete c.valorManual; else c.valorManual=n;
+    }
+  }
+  const veEl=document.getElementById('cc-valorener-'+id);
+  if(veEl){
+    const t=veEl.value.trim();
+    if(t===''){delete c.valorEnerManual;}
+    else{
+      const n=Math.max(0,parseInt(t)||0);
+      if(n===ccAutoEner(c))delete c.valorEnerManual; else c.valorEnerManual=n;
+    }
+  }
+  delete c.valor; delete c.valorEnergias; // campos viejos, ya no se usan
   setComprasConcretar(cc);
   renderRecordatorios();
-  toast('✓ Chaya actualizada');
+  toast('✓ Chaya actualizada — total '+fmt(ccTotal(c)));
 }
 
 function agregarTarea(){
@@ -2919,8 +2946,10 @@ function renderRecordatorios(){
               '<button type="button" class="btn btn-secondary btn-sm" id="cc-esp-'+c.id+'" data-activo="'+espAct+'" onclick="toggleEsperandoEdit(\''+c.id+'\')" style="white-space:nowrap;'+estiloEsp+'">⏳ Esperando'+(c.esperando?' ✓':'')+'</button>'+
             '</div>'+
             '<input type="number" id="cc-ener-'+c.id+'" value="'+(c.energias||'')+'" min="0" placeholder="Cantidad de energías" style="padding:7px 10px;font-size:12px;">'+
-            '<input type="number" id="cc-valorener-'+c.id+'" value="'+(c.valorEnergias||'')+'" min="0" placeholder="Valor energías $" style="padding:7px 10px;font-size:12px;">'+
-            '<input type="number" id="cc-valor-'+c.id+'" value="'+(c.valor||'')+'" min="0" placeholder="Valor cartas $" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
+            '<input type="number" id="cc-envio-'+c.id+'" value="'+(c.envioExtra||'')+'" min="0" placeholder="Extra envío $ (regiones)" style="padding:7px 10px;font-size:12px;">'+
+            '<div style="grid-column:1/-1;font-family:var(--font-mono);font-size:9px;color:var(--muted2);line-height:1.5;margin-top:2px;">Los valores se calculan solos: cartas × $'+PRECIO_OBJETIVO+' y energías × $'+PRECIO_ENERGIA+'. Deja los dos campos de abajo <b>vacíos</b> para eso; escribe un monto solo si pagaste distinto.</div>'+
+            '<input type="number" id="cc-valor-'+c.id+'" value="'+(ccEsManualCartas(c)?c.valorManual:'')+'" min="0" placeholder="Valor cartas — auto '+fmt(ccAutoCartas(c))+'" style="padding:7px 10px;font-size:12px;">'+
+            '<input type="number" id="cc-valorener-'+c.id+'" value="'+(ccEsManualEner(c)?c.valorEnerManual:'')+'" min="0" placeholder="Valor energías — auto '+fmt(ccAutoEner(c))+'" style="padding:7px 10px;font-size:12px;">'+
             '<input type="text" id="cc-desc-'+c.id+'" value="'+escAttr(c.desc||'')+'" placeholder="Descripción" style="padding:7px 10px;font-size:12px;grid-column:1/-1;">'+
           '</div>'+
           '<div style="display:flex;gap:6px;">'+
@@ -2935,27 +2964,32 @@ function renderRecordatorios(){
         ?'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como no comprada" style="border-color:rgba(74,222,128,.5);color:#4ade80;">✓ Comprada</button>'
         :'<button class="rv-btn-ok" onclick="toggleCompradaChaya(\''+c.id+'\')" title="Marcar como comprada">💰 Comprado</button>';
       const btnValor=c.comprado
-        ?'<button class="rv-btn-ok" onclick="editarValorChaya(\''+c.id+'\')" title="Cambiar el valor pagado" style="border-color:rgba(200,241,53,.4);color:var(--accent);">💵 '+(((parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0))?fmt((parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0)):'Poner valor')+'</button>'
+        ?'<button class="rv-btn-ok" onclick="editarValorChaya(\''+c.id+'\')" title="Ajustar envío o valor pagado" style="border-color:rgba(200,241,53,.4);color:var(--accent);">💵 '+fmt(ccTotal(c))+'</button>'
         :'';
       // Valor pagado y precio por carta
-      const cantNum=c.esperando?0:(parseInt(c.cantidad)||0);
-      const ppc=(c.comprado&&c.valor&&cantNum)?(c.valor/cantNum):null;
-      const ppe=(c.comprado&&c.valorEnergias&&enerNum)?(c.valorEnergias/enerNum):null;
-      const colorPpc=ppc===null?'':(ppc<=PRECIO_OBJETIVO?'#4ade80':'var(--red)');
-      const colorPpe=ppe===null?'':(ppe<=PRECIO_ENERGIA?'#4ade80':'var(--red)');
-      const u=n=>n.toFixed(1).replace('.0','');
+      const cantNum=ccCartas(c), enerN=ccEner(c), envN=ccEnvio(c);
+      const u=n=>'$'+(Math.round(n*10)/10).toLocaleString('es-CL');
+      const chip=(txt,col)=>'<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.05);color:'+col+';margin-left:4px;">'+txt+'</span>';
       let valorHtml='';
-      if(c.comprado){
+      {
         const lineas=[];
-        if(cantNum)lineas.push('<span style="color:var(--muted);">cartas</span> '+
-          (c.valor?'<span style="color:var(--accent);">'+fmt(c.valor)+'</span>':'<span style="color:var(--accent2);">sin valor</span>')+
-          (ppc!==null?' <span style="color:'+colorPpc+';">· $'+u(ppc)+' c/u</span> <span style="color:var(--muted2);">(obj $'+PRECIO_OBJETIVO+')</span>':''));
-        if(enerNum)lineas.push('<span style="color:var(--muted);">energías</span> '+
-          (c.valorEnergias?'<span style="color:var(--blue);">'+fmt(c.valorEnergias)+'</span>':'<span style="color:var(--accent2);">sin valor</span>')+
-          (ppe!==null?' <span style="color:'+colorPpe+';">· $'+u(ppe)+' c/u</span> <span style="color:var(--muted2);">(obj $'+PRECIO_ENERGIA+')</span>':''));
-        const tot=(parseInt(c.valor)||0)+(parseInt(c.valorEnergias)||0);
-        if(lineas.length)valorHtml='<div style="font-family:var(--font-mono);font-size:11px;margin-top:4px;line-height:1.7;">'+lineas.join('<br>')+
-          (lineas.length>1&&tot?'<br><span style="color:var(--muted2);">total pagado '+fmt(tot)+'</span>':'')+'</div>';
+        if(cantNum){
+          const pc=ccPorCarta(c);
+          const col=pc<=PRECIO_OBJETIVO?'#4ade80':'var(--red)';
+          lineas.push('<span style="color:var(--muted);">cartas</span> <span style="color:var(--accent);">'+fmt(ccValCartas(c))+'</span>'+
+            (ccEsManualCartas(c)?chip('manual','var(--accent2)'):chip('auto $'+PRECIO_OBJETIVO,'var(--muted2)'))+
+            (envN?' <span style="color:var(--muted);">+ envío</span> <span style="color:var(--accent);">'+fmt(envN)+'</span>':'')+
+            ' <span style="color:'+col+';">· '+u(pc)+' por carta</span>');
+        }
+        if(enerN){
+          const pe=ccPorEnergia(c);
+          const colE=pe<=PRECIO_ENERGIA?'#4ade80':'var(--red)';
+          lineas.push('<span style="color:var(--muted);">energías</span> <span style="color:var(--blue);">'+fmt(ccValEner(c))+'</span>'+
+            (ccEsManualEner(c)?chip('manual','var(--accent2)'):chip('auto $'+PRECIO_ENERGIA,'var(--muted2)'))+
+            ' <span style="color:'+colE+';">· '+u(pe)+' por energía</span>');
+        }
+        if(lineas.length)valorHtml='<div style="font-family:var(--font-mono);font-size:11px;margin-top:5px;line-height:1.8;">'+lineas.join('<br>')+
+          ((cantNum&&enerN)||envN?'<br><span style="color:var(--text);">total '+fmt(ccTotal(c))+'</span>':'')+'</div>';
       }
       const fechaHtml=c.fecha+(c.comprado&&c.fechaCompra?' · comprada el '+c.fechaCompra:'');
       const borde=c.comprado?'rgba(74,222,128,.35)':'rgba(168,85,247,.2)';
@@ -2978,108 +3012,93 @@ function renderRecordatorios(){
     }).join('');}
   }
 
-  // Contador de cartas: TEÓRICO (todo lo anotado) y REAL (solo lo comprado)
+  /* ── PANEL DE PROGRESO ──
+     Cartas: meta 55.000 a $12.  Energías: meta editable a $3.
+     Los valores se calculan solos; el envío de regiones sube el precio por carta. */
   const contEl=document.getElementById('chayasContador');
   if(contEl){
     const nf=n=>Math.round(n).toLocaleString('es-CL');
-    const cant=c=>(c.esperando?0:(parseInt(c.cantidad)||0));
-    const totalTeorico=cc.reduce((a,c)=>a+cant(c),0);
+    const u=n=>'$'+(Math.round(n*10)/10).toLocaleString('es-CL');
     const compradas=cc.filter(c=>c.comprado);
-    const totalReal=compradas.reduce((a,c)=>a+cant(c),0);
+    const METAE=getMetaEnergias();
+
+    // CARTAS
+    const cartasReal=compradas.reduce((a,c)=>a+ccCartas(c),0);
+    const cartasTeorico=cc.reduce((a,c)=>a+ccCartas(c),0);
+    const gastoCartas=compradas.reduce((a,c)=>a+ccCostoCartas(c),0);
+    const envios=compradas.reduce((a,c)=>a+ccEnvio(c),0);
+    const pctCartas=Math.min(100,(cartasReal/META_CHAYAS)*100);
+    const pctTeorico=Math.min(100,(cartasTeorico/META_CHAYAS)*100);
+    const pctGasto=Math.min(100,(gastoCartas/PRESUPUESTO_CHAYAS)*100);
+    const ppc=cartasReal?gastoCartas/cartasReal:0;
     const nEsperando=cc.filter(c=>c.esperando).length;
-    const pctT=Math.min(100,(totalTeorico/META_CHAYAS)*100);
-    const pctR=Math.min(100,(totalReal/META_CHAYAS)*100);
-    const faltaR=Math.max(0,META_CHAYAS-totalReal);
-    const colorR=pctR>=100?'var(--accent)':'#4ade80';
-    const colorT='#a855f7';
-    const bloque=(titulo,sub,valor,pct,color,pie)=>
-      '<div style="flex:1;min-width:190px;">'+
-        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">'+titulo+' <span style="color:var(--muted2);letter-spacing:.5px;">'+sub+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;">'+
-          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+color+';letter-spacing:1px;">'+nf(valor)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(META_CHAYAS)+'</span></div>'+
-          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+color+';">'+pct.toFixed(1)+'%</div>'+
+
+    // ENERGÍAS
+    const enerReal=compradas.reduce((a,c)=>a+ccEner(c),0);
+    const enerTeorico=cc.reduce((a,c)=>a+ccEner(c),0);
+    const gastoEner=compradas.reduce((a,c)=>a+ccValEner(c),0);
+    const pctEner=Math.min(100,(enerReal/METAE)*100);
+    const ppe=enerReal?gastoEner/enerReal:0;
+
+    // RESUMEN EN PALABRAS
+    let resumen;
+    if(!compradas.length){
+      resumen=cc.length
+        ?'Tenés '+nf(cartasTeorico)+' cartas y '+nf(enerTeorico)+' energías anotadas, pero <b>ninguna marcada como comprada</b> todavía. Apretá 💰 Comprado en las que ya cerraste.'
+        :'Todavía no hay chayas anotadas. Agregá la primera con el formulario de abajo.';
+    }else{
+      const difPpc=ppc-PRECIO_OBJETIVO;
+      const juicio=Math.abs(difPpc)<0.05
+        ?'Vas <b style="color:var(--accent);">justo en el objetivo</b> de $'+PRECIO_OBJETIVO+' por carta.'
+        :(difPpc<0
+          ?'Vas <b style="color:var(--accent);">'+u(Math.abs(difPpc))+' bajo</b> el objetivo por carta ('+u(ppc)+' vs $'+PRECIO_OBJETIVO+'), así que te está rindiendo el presupuesto.'
+          :'Vas <b style="color:var(--red);">'+u(difPpc)+' sobre</b> el objetivo por carta ('+u(ppc)+' vs $'+PRECIO_OBJETIVO+')'+(envios?', principalmente por los '+fmt(envios)+' de envíos':'')+'.');
+      const proy=ppc?Math.round(ppc*META_CHAYAS):0;
+      const sobre=proy-PRESUPUESTO_CHAYAS;
+      resumen='Llevás <b>'+nf(cartasReal)+' de '+nf(META_CHAYAS)+' cartas</b> ('+pctCartas.toFixed(1)+'%) y gastaste <b>'+fmt(gastoCartas)+' de '+fmt(PRESUPUESTO_CHAYAS)+'</b>. '+juicio+
+        (proy?' A este precio las '+nf(META_CHAYAS)+' saldrían <b>'+fmt(proy)+'</b>'+(sobre>0?' ('+fmt(sobre)+' sobre presupuesto)':sobre<0?' ('+fmt(Math.abs(sobre))+' bajo presupuesto)':'')+'.':'')+
+        (enerReal?' En energías llevás <b>'+nf(enerReal)+'</b> por '+fmt(gastoEner)+' ('+u(ppe)+' c/u'+(ppe>PRECIO_ENERGIA?', sobre los $'+PRECIO_ENERGIA:'')+').':'')+
+        (nEsperando?' Hay <b>'+nEsperando+'</b> esperando conteo, que todavía no suman.':'');
+    }
+
+    // BARRAS
+    const barra=(titulo,sub,valorTxt,pct,color,pie,extra)=>
+      '<div style="margin-top:14px;'+(extra||'')+'">'+
+        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">'+titulo+' <span style="color:var(--muted2);letter-spacing:.5px;text-transform:none;">'+sub+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
+          '<div style="font-family:var(--font-display);font-size:28px;line-height:1;color:'+color+';letter-spacing:1px;">'+valorTxt+'</div>'+
+          '<div style="font-family:var(--font-display);font-size:19px;line-height:1;color:'+color+';">'+pct.toFixed(1)+'%</div>'+
         '</div>'+
         '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;">'+
           '<div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:100px;transition:width .5s;"></div>'+
         '</div>'+
-        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pie+'</div>'+
+        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:5px;">'+pie+'</div>'+
       '</div>';
-    /* ── ENERGÍAS (aparte de las cartas, objetivo $3 c/u) ── */
-    const METAE=getMetaEnergias();
-    const ener=c=>(parseInt(c.energias)||0);
-    const enerTeorico=cc.reduce((a,c)=>a+ener(c),0);
-    const enerReal=compradas.reduce((a,c)=>a+ener(c),0);
-    const gastoEner=compradas.reduce((a,c)=>a+(parseInt(c.valorEnergias)||0),0);
-    const pctE=Math.min(100,(enerReal/METAE)*100);
-    const ppeReal=enerReal?(gastoEner/enerReal):0;
-    const colorE=ppeReal&&ppeReal>PRECIO_ENERGIA?'var(--red)':'var(--blue)';
-    const conEner=compradas.filter(c=>ener(c)>0).length;
-    let bloqueEnergias='';
-    if(enerTeorico||enerReal||gastoEner){
-      const faltaE=Math.max(0,METAE-enerReal);
-      bloqueEnergias=
-      '<div style="border-top:1px solid rgba(96,165,250,.2);margin-top:14px;padding-top:12px;">'+
-        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">\u26a1 Energ\u00edas compradas '+
-          '<span style="color:var(--muted2);letter-spacing:.5px;">\u00b7 objetivo $'+PRECIO_ENERGIA+' c/u</span> '+
-          '<button onclick="cambiarMetaEnergias()" title="Cambiar la meta de energ\u00edas" style="background:none;border:1px solid var(--border2);color:var(--muted);font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:1px 6px;border-radius:5px;cursor:pointer;margin-left:4px;">meta \u270e</button>'+
-        '</div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
-          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+colorE+';letter-spacing:1px;">'+nf(enerReal)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(METAE)+'</span></div>'+
-          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+colorE+';">'+pctE.toFixed(1)+'%</div>'+
-        '</div>'+
-        '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;">'+
-          '<div style="height:100%;width:'+pctE+'%;background:'+colorE+';border-radius:100px;transition:width .5s;"></div>'+
-        '</div>'+
-        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+
-          (enerReal
-            ?conEner+' chaya'+(conEner!==1?'s':'')+' con energ\u00edas \u00b7 gasto '+fmt(gastoEner)+(ppeReal?' \u00b7 <span style="color:'+(ppeReal<=PRECIO_ENERGIA?'var(--accent)':'var(--red)')+';">$'+ppeReal.toFixed(1).replace('.0','')+' por energ\u00eda</span>':'')+(faltaE>0?' \u00b7 faltan '+nf(faltaE):' \u00b7 \u00a1meta cumplida!')
-            :nf(enerTeorico)+' energ\u00edas anotadas, ninguna comprada todav\u00eda')+
-        '</div>'+
-        (enerTeorico!==enerReal?'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">anotadas en total (te\u00f3rico): '+nf(enerTeorico)+'</div>':'')+
-      '</div>';
-    }
 
-    // Gasto EN CARTAS (las energias van en su propio bloque)
-    const gasto=compradas.reduce((a,c)=>a+(parseInt(c.valor)||0),0);
-    const pctG=Math.min(100,(gasto/PRESUPUESTO_CHAYAS)*100);
-    const ppcReal=totalReal?(gasto/totalReal):0;
-    // Al ritmo actual, cuánto costarían las 55.000
-    const proyeccion=ppcReal?Math.round(ppcReal*META_CHAYAS):0;
-    const sobre=proyeccion-PRESUPUESTO_CHAYAS;
-    const sinValor=compradas.filter(c=>(c.esperando?0:(parseInt(c.cantidad)||0))>0&&!(parseInt(c.valor)||0)).length;
-    const bajoObjetivo=!ppcReal||ppcReal<=PRECIO_OBJETIVO;
-    const colorG=bajoObjetivo?'var(--accent)':'var(--red)';
-    // Lo que "debería" haber gastado para las cartas que ya lleva
-    const esperado=totalReal*PRECIO_OBJETIVO;
-    const dif=gasto-esperado;
-    let pieGasto;
-    if(!compradas.length)pieGasto='sin compras todavía · presupuesto '+nf(META_CHAYAS)+' × $'+PRECIO_OBJETIVO;
-    else pieGasto='$'+(ppcReal.toFixed(1).replace('.0',''))+' por carta (objetivo $'+PRECIO_OBJETIVO+')'+
-      (dif!==0?' · '+(dif>0?'<span style="color:var(--red);">'+nf(Math.abs(dif))+' sobre</span>':'<span style="color:var(--accent);">'+nf(Math.abs(dif))+' bajo</span>')+' lo esperado':' · justo en el objetivo')+
-      (sinValor?' <span style="color:var(--accent2);">· '+sinValor+' sin valor</span>':'');
+    const colorCartas=pctCartas>=100?'var(--accent)':'#a855f7';
+    const colorGasto=(ppc&&ppc>PRECIO_OBJETIVO)?'var(--red)':'var(--accent)';
+    const colorEner=(ppe&&ppe>PRECIO_ENERGIA)?'var(--red)':'var(--blue)';
+    const sep='border-top:1px solid rgba(168,85,247,.18);padding-top:12px;';
+
     contEl.innerHTML=
-      '<div style="display:flex;gap:18px;flex-wrap:wrap;">'+
-        bloque('💰 Comprado (real)','· cartas ya compradas',totalReal,pctR,colorR,
-          compradas.length+' chaya'+(compradas.length!==1?'s':'')+' comprada'+(compradas.length!==1?'s':'')+(faltaR>0?' · faltan '+nf(faltaR):' · ¡meta cumplida!'))+
-        bloque('📋 Anotado (teórico)','· todo lo que hay en la lista',totalTeorico,pctT,colorT,
-          cc.length+' chaya'+(cc.length!==1?'s':'')+' anotada'+(cc.length!==1?'s':'')+(nEsperando?' · ⏳ '+nEsperando+' esperando conteo':''))+
-      '</div>'+
-      bloqueEnergias+
-      '<div style="border-top:1px solid rgba(168,85,247,.2);margin-top:14px;padding-top:12px;">'+
-        '<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">💵 Gasto en cartas <span style="color:var(--muted2);letter-spacing:.5px;">· presupuesto '+nf(META_CHAYAS)+' cartas a $'+PRECIO_OBJETIVO+' (sin contar energías)</span></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
-          '<div style="font-family:var(--font-display);font-size:30px;line-height:1;color:'+colorG+';letter-spacing:1px;">'+fmt(gasto)+' <span style="font-size:14px;color:var(--muted);">/ '+fmt(PRESUPUESTO_CHAYAS)+'</span></div>'+
-          '<div style="font-family:var(--font-display);font-size:20px;line-height:1;color:'+colorG+';">'+pctG.toFixed(1)+'%</div>'+
-        '</div>'+
-        '<div style="height:9px;background:var(--surface3);border-radius:100px;overflow:hidden;margin-top:7px;position:relative;">'+
-          '<div style="height:100%;width:'+pctG+'%;background:'+colorG+';border-radius:100px;transition:width .5s;"></div>'+
-          '<div style="position:absolute;top:-2px;bottom:-2px;left:'+pctR+'%;width:2px;background:var(--text);opacity:.55;" title="Avance en cartas: '+pctR.toFixed(1)+'%"></div>'+
-        '</div>'+
-        '<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:6px;">'+pieGasto+'</div>'+
-        (proyeccion?'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:4px;">A este precio, las '+nf(META_CHAYAS)+' cartas saldrían '+fmt(proyeccion)+
-          (sobre>0?' <span style="color:var(--red);">('+fmt(sobre)+' sobre presupuesto)</span>':sobre<0?' <span style="color:var(--accent);">('+fmt(Math.abs(sobre))+' bajo presupuesto)</span>':'')+'</div>':'')+
-      '</div>';
+      '<div style="font-size:13px;line-height:1.6;color:var(--text);">'+resumen+'</div>'+
+      barra('🃏 Cartas compradas','· meta '+nf(META_CHAYAS),
+        nf(cartasReal)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(META_CHAYAS)+'</span>',
+        pctCartas,colorCartas,
+        compradas.length+' chaya'+(compradas.length!==1?'s':'')+' comprada'+(compradas.length!==1?'s':'')+
+        ' · faltan '+nf(Math.max(0,META_CHAYAS-cartasReal))+
+        (cartasTeorico!==cartasReal?' · anotadas en total '+nf(cartasTeorico)+' ('+pctTeorico.toFixed(1)+'%)':''),sep)+
+      barra('💵 Gasto en cartas','· presupuesto '+nf(META_CHAYAS)+' × $'+PRECIO_OBJETIVO+', sin energías',
+        fmt(gastoCartas)+' <span style="font-size:14px;color:var(--muted);">/ '+fmt(PRESUPUESTO_CHAYAS)+'</span>',
+        pctGasto,colorGasto,
+        (cartasReal?u(ppc)+' por carta (objetivo $'+PRECIO_OBJETIVO+')'+(envios?' · incluye '+fmt(envios)+' de envíos':''):'sin compras todavía'),sep)+
+      ((enerTeorico||enerReal)?barra('⚡ Energías compradas','· objetivo $'+PRECIO_ENERGIA+' c/u <button onclick="cambiarMetaEnergias()" title="Cambiar la meta de energías" style="background:none;border:1px solid var(--border2);color:var(--muted);font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:1px 6px;border-radius:5px;cursor:pointer;margin-left:4px;">meta ✎</button>',
+        nf(enerReal)+' <span style="font-size:14px;color:var(--muted);">/ '+nf(METAE)+'</span>',
+        pctEner,colorEner,
+        (enerReal?'gasto '+fmt(gastoEner)+' · '+u(ppe)+' por energía · faltan '+nf(Math.max(0,METAE-enerReal)):nf(enerTeorico)+' anotadas, ninguna comprada todavía')+
+        (enerTeorico!==enerReal?' · anotadas en total '+nf(enerTeorico):''),'border-top:1px solid rgba(96,165,250,.18);padding-top:12px;'):'');
   }
+
 
   // Badge
   const total=vp.length+vc.length+pendientes.length+cc.length;
